@@ -465,6 +465,7 @@ services:
     container_name: accounts-seq
     environment:
       ACCEPT_EULA: Y
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"   # local dev only; Seq 2025.2+ requires explicit opt-in
     ports:
       - "5341:80"
     volumes:
