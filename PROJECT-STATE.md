@@ -1,7 +1,34 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
 **Last working session:** 2026-05-11
-**Status:** DDD stance resolved. Writing the Foundation sub-plan.
+**Status:** Paused after Task 10. Executing Sub-plan 1a (Foundation Core) via subagent-driven-development. **10 of 40 tasks complete** on branch `feature/foundation-core`. Next: **Task 11** (cross-tenant isolation integration test — first test that actually exercises the query filter via a temporary `TenantTestRow` entity).
+
+**Tasks completed (commits on `feature/foundation-core`, in order):**
+| # | Commit | Description |
+|---|---|---|
+| 1 | `536471e` | Repo bootstrap — solution, .gitignore, .editorconfig, central package management, README |
+| 2 | `a7fb188` | 8 csproj scaffold with Clean Architecture references |
+| 3 | `901150c` | docker-compose.yml (postgres + seq running locally) |
+| – | `d9300d6` | Plan-fix: Seq `SEQ_FIRSTRUN_NOAUTHENTICATION` requirement recorded |
+| 4 | `52acf3e` | SharedKernel: FirmId, UserId, Entity/AggregateRoot/ValueObject, Clock, Result + 6 tests |
+| 5 | `0f2faee` | PracticeOperations DbContext skeleton + DI registration |
+| 6 | `b9db07c` | Web composition root + /health endpoint (DB-check) |
+| 7 | `1b158a6` | Integration test infra: PostgresFixture, ApiFactory, HealthCheckTests |
+| 8 | `48a8aa4` | Initial empty EF migration |
+| 9 | `8530c41` | IFirmContext abstraction + HttpContext-backed accessor in Web |
+| 10 | `ed9b1fe` | DbContext applies ITenantScopedEntity global query filter (currently inert — no entities implement the marker yet) |
+
+**Plan deviations to be aware of** (already documented in plan file):
+- Task 2: test-tool package versions bumped to SDK-template baseline; `coverlet.collector` 6.0.4 added (test-tooling only)
+- Task 3: `SEQ_FIRSTRUN_NOAUTHENTICATION: "true"` required for Seq 2025.2+ local dev
+- Task 4: `CA1000` suppressed in-file on `Result<T>`; `CA1707` suppressed in test csprojs (xunit naming)
+- Task 5: `System.Security.Cryptography.Xml 10.0.7` pinned to mitigate CVE in EF Design's transitive deps
+- Task 6: 5th package required for `AddDbContextCheck<T>` (`Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`); EF Core bumped to 10.0.7
+- Task 7: `CA1711` suppression added (xunit `[CollectionDefinition]` marker-type naming). Test goes GREEN immediately not RED — `Migrate()` no-op + `CanConnectAsync()` only. Plan updated to reflect this.
+
+**Execution metrics:** 10 implementer dispatches + 7 reviewer dispatches = 17 subagent dispatches. Avg ~1.7 reviewers per task (some combined, some skipped for pure tooling output like Task 8).
+
+**To resume tomorrow:** Read this file, check out `feature/foundation-core`, ensure Docker is running (`docker compose -f docker/docker-compose.yml up -d`), then dispatch the implementer for Task 11. The Task 11 spec is in `docs/superpowers/plans/2026-05-11-foundation-core.md` under "### Task 11".
 
 ---
 
