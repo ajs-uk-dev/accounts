@@ -2,6 +2,7 @@ using Accounts.PracticeOperations.Application.Abstractions;
 using Accounts.PracticeOperations.Application.Behaviors;
 using Accounts.PracticeOperations.Infrastructure.Audit;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
+using Accounts.PracticeOperations.Infrastructure.Persistence.Repositories;
 using Accounts.SharedKernel.Time;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,9 @@ public static class DependencyInjection
         services.AddSingleton<IClock, SystemClock>();
         services.AddHttpContextAccessor();
         services.AddScoped<IAuditWriter, EfAuditWriter>();
+        services.AddScoped<IFirmRepository, EfFirmRepository>();
+        services.AddScoped<IUserRepository, EfUserRepository>();
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 
         services.AddMediatR(cfg =>
         {
