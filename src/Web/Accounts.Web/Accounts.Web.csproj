@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\PracticeOperations\Accounts.PracticeOperations.Infrastructure\Accounts.PracticeOperations.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\PracticeOperations\Accounts.PracticeOperations.Application\Accounts.PracticeOperations.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

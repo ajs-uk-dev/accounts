@@ -1,10 +1,15 @@
 using Accounts.PracticeOperations.Infrastructure;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
+using Accounts.Web.Auth;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddPracticeOperations(builder.Configuration);
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Accounts.PracticeOperations.Application.Abstractions.IFirmContext,
+                          Accounts.Web.Auth.FirmContextAccessor>();
 
 builder.Services
     .AddHealthChecks()
