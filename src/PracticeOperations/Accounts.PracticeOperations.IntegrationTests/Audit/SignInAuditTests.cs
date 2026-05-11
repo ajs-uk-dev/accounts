@@ -124,4 +124,58 @@ public class SignInAuditTests
         var payload = JsonSerializer.Deserialize<Dictionary<string, string>>(auditRow.Payload!);
         payload.Should().ContainKey("Reason").WhoseValue.Should().Be("BadPassword");
     }
+
+    [Fact]
+    public async Task SignIn_with_bad_totp_emits_UserSignInFailed_with_BadTotp_reason()
+    {
+        await using var api = new ApiFactory(_pg.ConnectionString);
+        var client = api.CreateClient();
+        var slug = UniqueSlug("bt");
+        var email = $"bt-{Guid.NewGuid():N}@example.com";
+        const string pwd = "correct-password-totp";
+
+        // Register firm
+        var regResp = await client.PostAsJsonAsync("/api/firms/register",
+            new RegisterFirmCommand("BT Firm", slug, email, pwd));
+        regResp.IsSuccessStatusCode.Should().BeTrue();
+        var reg = await regResp.Content.ReadFromJsonAsync<RegisterFirmResult>();
+
+        // First sign-in (no TOTP enrolled yet) to activate the user and obtain a token
+        var firstSignIn = await client.PostAsJsonAsync("/api/auth/sign-in",
+            new SignInCommand(email, pwd, null));
+        firstSignIn.IsSuccessStatusCode.Should().BeTrue("first sign-in should succeed before TOTP enrolment");
+        var token = (await firstSignIn.Content.ReadFromJsonAsync<SignInResult>())!.AccessToken;
+
+        // Enrol TOTP using the authenticated token
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var enrollResp = await client.PostAsync("/api/auth/enroll-totp", null);
+        enrollResp.IsSuccessStatusCode.Should().BeTrue("TOTP enrolment should succeed");
+
+        // Attempt sign-in with correct password but a deliberately wrong TOTP code
+        client.DefaultRequestHeaders.Authorization = null;
+        var badTotpResp = await client.PostAsJsonAsync("/api/auth/sign-in",
+            new SignInCommand(email, pwd, TotpCode: "000000"));
+        badTotpResp.StatusCode.Should().Be(System.Net.HttpStatusCode.Unauthorized);
+
+        using var scope = api.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PracticeOperationsDbContext>();
+
+        var auditRow = await db.Set<AuditEvent>()
+            .Where(e => e.FirmId == new FirmId(reg!.FirmId)
+                        && e.Action == AuditAction.UserSignInFailed
+                        && e.Subject == email)
+            .OrderByDescending(e => e.OccurredAt)
+            .FirstOrDefaultAsync();
+
+        auditRow.Should().NotBeNull("sign-in with bad TOTP must emit a UserSignInFailed audit event");
+        auditRow!.ActorUserId!.Value.Value.Should().Be(reg!.OwnerUserId,
+            "actor should be the user who attempted to sign in");
+        auditRow.FirmId!.Value.Value.Should().Be(reg.FirmId);
+        auditRow.Subject.Should().Be(email);
+
+        auditRow.Payload.Should().NotBeNullOrEmpty();
+        var payload = JsonSerializer.Deserialize<Dictionary<string, string>>(auditRow.Payload!);
+        payload.Should().ContainKey("Reason").WhoseValue.Should().Be("BadTotp");
+    }
 }
