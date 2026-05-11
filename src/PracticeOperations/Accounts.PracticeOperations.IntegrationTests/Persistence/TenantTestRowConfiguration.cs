@@ -1,9 +1,8 @@
-using Accounts.PracticeOperations.Domain._Test;
 using Accounts.SharedKernel.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Accounts.PracticeOperations.Infrastructure.Persistence.Configurations;
+namespace Accounts.PracticeOperations.IntegrationTests.Persistence;
 
 internal sealed class TenantTestRowConfiguration : IEntityTypeConfiguration<TenantTestRow>
 {

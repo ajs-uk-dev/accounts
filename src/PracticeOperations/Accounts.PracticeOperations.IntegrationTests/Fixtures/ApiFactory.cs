@@ -3,7 +3,12 @@ using Accounts.PracticeOperations.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+#pragma warning disable EF1001 // Internal EF API — ReplaceService is the supported hook for customising EF's internal SP in tests
 
 namespace Accounts.PracticeOperations.IntegrationTests.Fixtures;
 
@@ -35,11 +40,42 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:LifetimeMinutes", "60");
         builder.ConfigureServices(services =>
         {
+            // Re-register the DbContext with:
+            //   (a) ReplaceService<IModelCustomizer, TestModelCustomizer>() — tells EF's
+            //       internal service provider to use our customizer, which adds the
+            //       TenantTestRow test-only entity to the model.
+            //   (b) ConfigureWarnings(Ignore PendingModelChangesWarning) — the test model
+            //       intentionally includes TenantTestRow which is absent from the production
+            //       migration snapshot, so we suppress the warning that would otherwise throw.
+            services.RemoveAll<DbContextOptions<PracticeOperationsDbContext>>();
+            services.AddDbContext<PracticeOperationsDbContext>(opts =>
+            {
+                opts.UseNpgsql(_connectionString, npgsql =>
+                        npgsql.MigrationsHistoryTable("__ef_migrations", "practice_operations"))
+                    .UseSnakeCaseNamingConvention()
+                    .ReplaceService<IModelCustomizer, TestModelCustomizer>()
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+            }, ServiceLifetime.Scoped, ServiceLifetime.Scoped);
+
             _configureServices?.Invoke(services);
             using var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<PracticeOperationsDbContext>();
             db.Database.Migrate();
+
+            // The production migrations drop tenant_test_rows (it was removed from production
+            // schema in DropTenantTestRowFromProductionSchema).  Re-create it for tests so that
+            // TenantIsolationTests can use it to exercise the query filter.
+            db.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS practice_operations.tenant_test_rows (
+                    id uuid NOT NULL,
+                    firm_id uuid NOT NULL,
+                    label character varying(200) NOT NULL,
+                    CONSTRAINT pk_tenant_test_rows PRIMARY KEY (id)
+                );
+                CREATE INDEX IF NOT EXISTS ix_tenant_test_rows_firm_id
+                    ON practice_operations.tenant_test_rows (firm_id);
+            ");
         });
     }
 }

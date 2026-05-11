@@ -1,7 +1,7 @@
 using Accounts.PracticeOperations.Application.Abstractions;
-using Accounts.PracticeOperations.Domain._Test;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
 using Accounts.PracticeOperations.IntegrationTests.Fixtures;
+using Accounts.PracticeOperations.IntegrationTests.Persistence;
 using Accounts.SharedKernel.Identity;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
