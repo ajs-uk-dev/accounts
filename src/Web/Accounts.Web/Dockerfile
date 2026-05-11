@@ -2,7 +2,7 @@
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY Directory.Build.props Directory.Packages.props ./
+COPY Directory.Build.props Directory.Packages.props .editorconfig ./
 COPY src/ ./src/
 RUN dotnet restore src/Web/Accounts.Web/Accounts.Web.csproj
 RUN dotnet publish src/Web/Accounts.Web/Accounts.Web.csproj -c Release -o /app/publish --no-restore

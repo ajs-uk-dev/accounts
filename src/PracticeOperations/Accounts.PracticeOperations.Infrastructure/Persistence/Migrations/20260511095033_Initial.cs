@@ -88,7 +88,6 @@ namespace Accounts.PracticeOperations.Infrastructure.Persistence.Migrations
                     table.PrimaryKey("pk_users", x => x.id);
                 });
 
-#pragma warning disable CA1861 // auto-generated migration: inline array literals are fine here
             migrationBuilder.CreateIndex(
                 name: "ix_audit_events_firm_id_action_occurred_at",
                 schema: "practice_operations",
@@ -100,7 +99,6 @@ namespace Accounts.PracticeOperations.Infrastructure.Persistence.Migrations
                 schema: "practice_operations",
                 table: "audit_events",
                 columns: new[] { "firm_id", "occurred_at" });
-#pragma warning restore CA1861
 
             migrationBuilder.CreateIndex(
                 name: "ix_firms_slug",
@@ -121,14 +119,12 @@ namespace Accounts.PracticeOperations.Infrastructure.Persistence.Migrations
                 table: "users",
                 column: "firm_id");
 
-#pragma warning disable CA1861 // auto-generated migration: inline array literals are fine here
             migrationBuilder.CreateIndex(
                 name: "ix_users_firm_id_email",
                 schema: "practice_operations",
                 table: "users",
                 columns: new[] { "firm_id", "email" },
                 unique: true);
-#pragma warning restore CA1861
         }
 
         /// <inheritdoc />
