@@ -59,6 +59,7 @@ var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<Accounts.Web.Middleware.CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseTenantLogContext();
 
