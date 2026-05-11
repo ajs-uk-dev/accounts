@@ -1,6 +1,7 @@
 using Accounts.PracticeOperations.Application.Abstractions;
 using Accounts.PracticeOperations.Application.Behaviors;
 using Accounts.PracticeOperations.Infrastructure.Audit;
+using Accounts.PracticeOperations.Infrastructure.Auth;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
 using Accounts.PracticeOperations.Infrastructure.Persistence.Repositories;
 using Accounts.SharedKernel.Time;
@@ -26,6 +27,7 @@ public static class DependencyInjection
                 .UseSnakeCaseNamingConvention());
 
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddHttpContextAccessor();
         services.AddScoped<IAuditWriter, EfAuditWriter>();
         services.AddScoped<IFirmRepository, EfFirmRepository>();

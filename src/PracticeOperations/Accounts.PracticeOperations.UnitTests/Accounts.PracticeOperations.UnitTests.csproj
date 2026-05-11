@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Accounts.PracticeOperations.Application\Accounts.PracticeOperations.Application.csproj" />
+    <ProjectReference Include="..\Accounts.PracticeOperations.Infrastructure\Accounts.PracticeOperations.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
