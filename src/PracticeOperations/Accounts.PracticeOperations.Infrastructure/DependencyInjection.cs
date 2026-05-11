@@ -5,6 +5,7 @@ using Accounts.PracticeOperations.Infrastructure.Auth;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
 using Accounts.PracticeOperations.Infrastructure.Persistence.Repositories;
 using Accounts.SharedKernel.Time;
+using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -38,6 +39,8 @@ public static class DependencyInjection
         {
             cfg.RegisterServicesFromAssembly(typeof(IFirmContext).Assembly); // Application asm
         });
+        services.AddValidatorsFromAssembly(typeof(IFirmContext).Assembly);
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AuditingBehavior<,>));
 
         return services;
