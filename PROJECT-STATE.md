@@ -1,7 +1,7 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
 **Last working session:** 2026-05-11 (extended)
-**Status:** Paused after Task 28 — **Phase 8 (authz) complete**. Sub-plan 1a (Foundation Core) at **28 of 40 tasks** on branch `feature/foundation-core`. Next: **Phase 9 — Observability (Tasks 29-31: Serilog + OpenTelemetry + CorrelationId)**, then Phases 10-12.
+**Status:** Paused after Task 31 — **Phase 9 (observability) complete**. Sub-plan 1a (Foundation Core) at **31 of 40 tasks** on branch `feature/foundation-core`. Next: **Phase 10 — Vite/React/TS frontend shell (Tasks 32-35)**, then Phases 11-12.
 
 ## Tasks completed (commits on `feature/foundation-core`, in order)
 
@@ -43,6 +43,11 @@
 | 27 | `6afcd59` | SignInCommand + handler + /api/auth/sign-in endpoint with TOTP step-up; auto-Activate on first sign-in (MFA grace); IAuditWriter ctor inject omitted (deferred to Task 28-29); 2 integration tests |
 | – | `31230cd` | docs(state): checkpoint after Task 27 |
 | 28 | `a1f320e` | Authorization policies (RequireFirmOwner / RequirePartnerOrAbove / RequireManagerOrAbove / RequireStaff) + /api/admin/me (RequireStaff) + /api/admin/owner-only (RequireFirmOwner); AdminEndpointsPartial stub removed; 2 integration tests proving full bearer → role-claim → policy chain |
+| – | `9852422` | docs(state): record Task 28; authz foundation complete |
+| 29 | `dd20dff` | Serilog: SerilogConfig.Configure + UseTenantLogContext extension; UseSerilogRequestLogging + per-request LogContext push of FirmId/UserId/CorrelationId; Seq sink |
+| 30 | `4e02398` | OpenTelemetry tracing: AspNetCore/HttpClient/EFCore instrumentation + OTLP exporter; ConsoleExporter fallback omitted in this commit (fixed in 30a) |
+| 30a | `2929364` | Fix(otel): bump OTel suite 1.10.x → 1.15.x to clear 3 CVE audits (NU1903); remove the audit suppressions added in 30; restore ConsoleExporter fallback; absorb `SetDbStatementForText` breaking removal (DB statement capture is now always-on in 1.13+) |
+| 31 | `6da1c57` | CorrelationIdMiddleware: read/echo `X-Correlation-ID` header; sets `HttpContext.TraceIdentifier`; runs before `UseSerilogRequestLogging` so logged request entries carry the real correlation ID; 2 integration tests (round-trip + generated-when-absent) |
 
 ## Auth surface now complete
 
@@ -74,6 +79,9 @@
 - Task 25: unit tests added beyond plan (2 — enroll happy path + user-not-found 400); FluentValidation `using` dropped from AuthEndpoints.cs (unused → CS8019)
 - Task 26: JwtBearer **NuGet package WAS required** in Accounts.Web.csproj (NOT in the implicit framework reference from `Microsoft.NET.Sdk.Web`); dev Jwt config split to appsettings.Development.json, prod-defaults appsettings.json has empty placeholders; ApiFactory `UseSetting` for Jwt config too (auth scheme inits eagerly on first request, otherwise IDX10703); CA1305 InvariantCulture on int.Parse, CA1062 ArgumentNullException.ThrowIfNull added defensively; 3 unit tests
 - Task 27: `IAuditWriter` ctor inject OMITTED (plan had it as a reserved-for-future field, would have tripped IDE0052/CA1823); SignInValidator uses lenient default `.EmailAddress()` deliberately (not strict regex — sign-in failure UX should be same 401 whether email format-bad or just wrong)
+- Task 29: SerilogConfig requires `using System.Globalization;` + `CultureInfo.InvariantCulture` on both `WriteTo.Console` and `WriteTo.Seq` to satisfy CA1305; `using Serilog;` added to `Program.cs` for `UseSerilogRequestLogging` extension resolution
+- Task 30 (significant): plan-pinned OTel 1.10.x packages carried 3 NU1903 CVE audits. Initial impl suppressed via `NuGetAuditSuppress` in `Directory.Build.props` (commit `4e02398`); fix commit `2929364` bumped the suite to 1.15.x (Hosting/OTLP/Console 1.15.3, AspNetCore 1.15.2, Http 1.15.1, EFCore 1.15.1-beta.1) and removed all 3 suppressions. **Breaking-change absorbed:** `AddEntityFrameworkCoreInstrumentation` lost the `SetDbStatementForText` option in 1.13.0-beta.1 — DB statement capture is now always-on (note this for Sub-plan 8 PII review). `OpenTelemetry.Exporter.Console 1.15.3` package was added to enable the ConsoleExporter fallback when no OTLP endpoint configured
+- Task 31: middleware param renamed `ctx` → `context` to pre-empt CA1725; integration tests added beyond plan (2 — explicit-header round-trip + generated-when-absent)
 
 ## Open follow-up tasks (tracker IDs)
 
@@ -83,30 +91,35 @@
 - **#20:** Move dev DB password AND JWT secret to `dotnet user-secrets`. Pending. JWT secret added to the same file in Task 26 so the issue compounded.
 - **Closed during this run:** #15 (CA1861 .editorconfig — Task 19), #16 (column naming — Task 19), #18 (Task 19 reviews — Task 19a), #21 (ConflictException — Task 23)
 
-## Execution metrics through Task 27
+## Execution metrics through Task 31
 
-~32 implementer dispatches + ~16 reviewer dispatches + 3 inline fix dispatches = ~51 subagent dispatches. Average ~1.9 subagents per task. Tasks 8, 10, 15, 16, 17, 18, 20, 21, 24, 25, 26, 27 skipped formal reviews (small/verbatim/well-tested-by-design). Tasks 11, 12, 13, 14, 19, 22, 23 received full review pairs and produced material fix commits.
+~36 implementer dispatches + ~16 reviewer dispatches + 4 inline fix dispatches = ~56 subagent dispatches. Average ~1.8 subagents per task. Tasks 8, 10, 15, 16, 17, 18, 20, 21, 24, 25, 26, 27, 28, 29, 30, 31 skipped formal reviews (small/verbatim/well-tested-by-design); Task 30 was caught at handoff by the controller (CVE suppressions surfaced as a concern) and fixed in a separate dispatch. Tasks 11, 12, 13, 14, 19, 22, 23 received full review pairs and produced material fix commits.
 
 ## Current state at pause
 
 - Branch: `feature/foundation-core`
-- Last commit: `a1f320e` (Task 28 — authz policies + admin endpoints)
-- Tasks complete: **28 of 40 (70%)**
-- Working tree: clean
-- Docker: postgres + seq still running locally (postgres healthy; required for integration tests)
+- Last commit: `6da1c57` (Task 31 — correlation-id middleware)
+- Tasks complete: **31 of 40 (77.5%)**
+- Working tree: clean (after this state-doc commit)
+- Docker: postgres + seq still running locally (postgres healthy; required for integration tests; Seq optional — Serilog Seq sink fails silently if unreachable)
 - Build: 0 warnings, 0 errors
-- Tests: **54 passing** (6 SharedKernel + 32 PracticeOperations.UnitTests + 16 PracticeOperations.IntegrationTests)
-- Vulnerability scan: clean (last verified at Task 21a commit)
+- Tests: **56 passing** (6 SharedKernel + 32 PracticeOperations.UnitTests + 18 PracticeOperations.IntegrationTests — +2 CorrelationId tests)
+- Vulnerability scan: clean — 0 NU1903/NU1904 audits (all 3 OTel CVE warnings closed in `2929364`; no `NuGetAuditSuppress` entries in the tree)
 - Dev DB note: still contains stale PascalCase-era migration rows from before Task 19 regeneration; anyone running `dotnet ef database update` against dev needs to drop the `practice_operations` schema first
+
+## Phase 9 (observability) at a glance — completed in this session
+
+- Structured logging via Serilog with `Application=accounts-api`, per-request `FirmId`/`UserId`/`CorrelationId` enrichers, Console + Seq sinks
+- Distributed tracing via OpenTelemetry: AspNetCore + HttpClient + EF Core instrumentation; OTLP exporter when `Otlp:Endpoint` set, else ConsoleExporter
+- Correlation-ID middleware reads/echoes `X-Correlation-ID`; runs before SerilogRequestLogging so logged entries carry the real correlation ID
 
 ## To resume next session
 
 1. Read this file.
 2. Check out `feature/foundation-core`.
 3. Verify Docker: `docker compose -f docker/docker-compose.yml ps`
-4. Optionally back-fill reviews for Tasks 24-28 (all skipped — small/verbatim with adequate test coverage; not strictly owed). Otherwise proceed.
-5. **Dispatch Task 29**: Serilog with structured properties. Spec in `docs/superpowers/plans/2026-05-11-foundation-core.md` near line 4013.
-6. Phases left: Phase 9 = observability (Serilog/OpenTelemetry/CorrelationId, Tasks 29-31); Phase 10 = Vite/React/TS frontend (Tasks 32-35); Phase 11 = Docker + GitHub Actions CI/CD (Tasks 36-39); Phase 12 = end-to-end Playwright (Task 40).
+4. **Dispatch Task 32**: Vite + React + TS scaffold with Tailwind. Spec in `docs/superpowers/plans/2026-05-11-foundation-core.md` near line 4235. Note: this is a context switch from .NET-land — frontend lives in `client/accounts-web/`.
+5. Phases left: Phase 10 = Vite/React/TS frontend shell (Tasks 32-35); Phase 11 = Docker + GitHub Actions CI/CD (Tasks 36-39); Phase 12 = end-to-end Playwright (Task 40).
 
 ---
 
@@ -116,7 +129,7 @@
 |---|---|---|
 | Domain research | `accountancy-practice-research.md` | 22-area working model of an SMB UK practice + ecosystem context + candidate domain model. ~165 KB / ~2,400 lines. |
 | Functional requirements spec | `docs/superpowers/specs/2026-05-10-saas-functional-requirements-design.md` | 367 numbered FRs across all 22 areas with cross-cutting requirements (Section 2), per-area template, glossary, 22 open questions. ~133 KB / ~1,290 lines. |
-| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. **28 of 40 executed.** |
+| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. **31 of 40 executed.** |
 
 ## Decisions locked in earlier sessions
 
@@ -166,7 +179,7 @@ What's in Sub-plan 1a:
 - React + TypeScript frontend shell **(pending, Tasks 32–35)**
 - PostgreSQL + EF Core with snake_case ✓
 - Cyber Essentials Plus baseline (MFA, audit log, encryption at rest/in transit) ✓ for auth/audit, TLS via deployment
-- Observability **(pending, Tasks 29–31)** — Serilog, OpenTelemetry, CorrelationId middleware
+- Observability ✓ — Serilog (FirmId/UserId/CorrelationId enrichers, Seq sink), OpenTelemetry (AspNetCore/Http/EFCore instrumentation, OTLP+Console exporters), CorrelationId middleware
 - CI/CD scaffold **(pending, Tasks 36–39)**
 
 Out of scope here (covered later):
@@ -183,4 +196,4 @@ Out of scope here (covered later):
 
 ---
 
-*Continue from this file when resuming. Auth + authz foundation is now complete — register, sign-in, MFA, JWT bearer, role-gated endpoints all working end-to-end. Next concrete action is Task 29 (Serilog with structured properties) — start of Phase 9 observability.*
+*Continue from this file when resuming. Auth + authz + observability foundations complete — register, sign-in, MFA, JWT bearer, role-gated endpoints all working end-to-end with structured logs (FirmId/UserId/CorrelationId enriched), OTel traces, and correlation-ID header round-trip. Next concrete action is Task 32 (Vite + React + TS scaffold) — start of Phase 10 frontend.*
