@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: accounts-postgres
+    environment:
+      POSTGRES_USER: accounts
+      POSTGRES_PASSWORD: accounts_dev_password
+      POSTGRES_DB: accounts_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - accounts-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accounts -d accounts_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  seq:
+    image: datalust/seq:latest
+    container_name: accounts-seq
+    environment:
+      ACCEPT_EULA: Y
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    ports:
+      - "5341:80"
+    volumes:
+      - accounts-seq-data:/data
+
+volumes:
+  accounts-postgres-data:
+  accounts-seq-data:
