@@ -17,11 +17,13 @@ public static class OpenTelemetryConfig
             {
                 t.AddAspNetCoreInstrumentation();
                 t.AddHttpClientInstrumentation();
-                t.AddEntityFrameworkCoreInstrumentation(o => o.SetDbStatementForText = true);
+                t.AddEntityFrameworkCoreInstrumentation();
 
                 var otlpEndpoint = builder.Configuration["Otlp:Endpoint"];
                 if (!string.IsNullOrEmpty(otlpEndpoint))
                     t.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+                else
+                    t.AddConsoleExporter();
             });
     }
 }

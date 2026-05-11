@@ -9,12 +9,4 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
   </PropertyGroup>
-  <!-- Suppress known CVEs in OpenTelemetry.Api 1.10.0. The full OTel 1.10.x suite is
-       intentionally pinned in Directory.Packages.props; a coordinated upgrade to patched
-       versions is tracked separately and is out of scope for Task 30. -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8785-wc3w-h8q6" />
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-g94r-2vxg-569j" />
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-4625-4j76-fww9" />
-  </ItemGroup>
 </Project>
