@@ -1,7 +1,7 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
 **Last working session:** 2026-05-11 (extended)
-**Status:** Paused after Task 31 — **Phase 9 (observability) complete**. Sub-plan 1a (Foundation Core) at **31 of 40 tasks** on branch `feature/foundation-core`. Next: **Phase 10 — Vite/React/TS frontend shell (Tasks 32-35)**, then Phases 11-12.
+**Status:** Paused after Task 35 — **Phase 10 (frontend shell) complete**. Sub-plan 1a (Foundation Core) at **35 of 40 tasks** on branch `feature/foundation-core`. Next: **Phase 11 — Docker + GitHub Actions CI/CD (Tasks 36-39)**, then Phase 12 (Playwright e2e).
 
 ## Tasks completed (commits on `feature/foundation-core`, in order)
 
@@ -48,6 +48,11 @@
 | 30 | `4e02398` | OpenTelemetry tracing: AspNetCore/HttpClient/EFCore instrumentation + OTLP exporter; ConsoleExporter fallback omitted in this commit (fixed in 30a) |
 | 30a | `2929364` | Fix(otel): bump OTel suite 1.10.x → 1.15.x to clear 3 CVE audits (NU1903); remove the audit suppressions added in 30; restore ConsoleExporter fallback; absorb `SetDbStatementForText` breaking removal (DB statement capture is now always-on in 1.13+) |
 | 31 | `6da1c57` | CorrelationIdMiddleware: read/echo `X-Correlation-ID` header; sets `HttpContext.TraceIdentifier`; runs before `UseSerilogRequestLogging` so logged request entries carry the real correlation ID; 2 integration tests (round-trip + generated-when-absent) |
+| – | `55dee37` | docs(state): checkpoint after Task 31; Phase 9 complete |
+| 32 | `6eeedc3` | Vite + React 19 + TS scaffold at `client/accounts-web/`; Tailwind v3 pinned (v4 changed config model); `@/* → src/*` path alias; vitest configured (no tests yet); npm build green |
+| 33 | `25fb8ff` | API client (`src/lib/api.ts` — axios + typed `firms.register`, `auth.signIn/enrollTotp/me`) + AuthProvider/useAuth (`src/lib/auth.tsx` — sessionStorage-persisted bearer token, expiry-aware) |
+| 34 | `2b19140` | Routes constants + ProtectedRoute (redirects unauth → `/sign-in`) + TopNav (auth-aware) + App.tsx route tree + main.tsx with BrowserRouter / QueryClientProvider / AuthProvider |
+| 35 | `d767300` | Register / SignIn / EnrollTotp / Dashboard pages — full register → sign-in (with TOTP step-up) → dashboard (`/api/admin/me` via @tanstack/react-query) flow; `err: unknown` with type narrowing (improvement over plan's `any`) |
 
 ## Auth surface now complete
 
@@ -82,6 +87,9 @@
 - Task 29: SerilogConfig requires `using System.Globalization;` + `CultureInfo.InvariantCulture` on both `WriteTo.Console` and `WriteTo.Seq` to satisfy CA1305; `using Serilog;` added to `Program.cs` for `UseSerilogRequestLogging` extension resolution
 - Task 30 (significant): plan-pinned OTel 1.10.x packages carried 3 NU1903 CVE audits. Initial impl suppressed via `NuGetAuditSuppress` in `Directory.Build.props` (commit `4e02398`); fix commit `2929364` bumped the suite to 1.15.x (Hosting/OTLP/Console 1.15.3, AspNetCore 1.15.2, Http 1.15.1, EFCore 1.15.1-beta.1) and removed all 3 suppressions. **Breaking-change absorbed:** `AddEntityFrameworkCoreInstrumentation` lost the `SetDbStatementForText` option in 1.13.0-beta.1 — DB statement capture is now always-on (note this for Sub-plan 8 PII review). `OpenTelemetry.Exporter.Console 1.15.3` package was added to enable the ConsoleExporter fallback when no OTLP endpoint configured
 - Task 31: middleware param renamed `ctx` → `context` to pre-empt CA1725; integration tests added beyond plan (2 — explicit-header round-trip + generated-when-absent)
+- Task 32: `npm create vite@latest accounts-web -- --template react-ts` no longer works as written — create-vite v9 changed positional-arg semantics. Implementer scaffolded manually (vanilla TS template + manual React install). End state is equivalent because Task 34 overwrites the scaffolded `main.tsx`/`App.tsx` anyway. TypeScript 6 deprecated standalone `baseUrl` — `"ignoreDeprecations": "6.0"` shim added to keep the plan's `@/*` path alias. Tailwind v3 pinned at `^3.4.19` (v4 dropped the CLI `init -p` and changed config approach) — the plan's `tailwind.config.ts` and `@tailwind` directives are v3 syntax
+- Task 33: type-only imports split out (`import type { AxiosInstance } from 'axios';`, `import type { ReactNode } from 'react';`) for `isolatedModules`/TS 6 compatibility
+- Tasks 34 + 35: combined into one dispatch (App.tsx in Task 34 imports pages from Task 35, so a Task-34-only commit wouldn't build); two atomic commits preserved per the plan's commit messages. `err: unknown` with type narrowing chosen over plan's `err: any` (stricter, no ESLint friction); `React.FormEvent` used directly (verbatimModuleSyntax is off)
 
 ## Open follow-up tasks (tracker IDs)
 
@@ -91,35 +99,38 @@
 - **#20:** Move dev DB password AND JWT secret to `dotnet user-secrets`. Pending. JWT secret added to the same file in Task 26 so the issue compounded.
 - **Closed during this run:** #15 (CA1861 .editorconfig — Task 19), #16 (column naming — Task 19), #18 (Task 19 reviews — Task 19a), #21 (ConflictException — Task 23)
 
-## Execution metrics through Task 31
+## Execution metrics through Task 35
 
-~36 implementer dispatches + ~16 reviewer dispatches + 4 inline fix dispatches = ~56 subagent dispatches. Average ~1.8 subagents per task. Tasks 8, 10, 15, 16, 17, 18, 20, 21, 24, 25, 26, 27, 28, 29, 30, 31 skipped formal reviews (small/verbatim/well-tested-by-design); Task 30 was caught at handoff by the controller (CVE suppressions surfaced as a concern) and fixed in a separate dispatch. Tasks 11, 12, 13, 14, 19, 22, 23 received full review pairs and produced material fix commits.
+~40 implementer dispatches + ~16 reviewer dispatches + 4 inline fix dispatches = ~60 subagent dispatches. Average ~1.7 subagents per task. Tasks 8, 10, 15, 16, 17, 18, 20, 21, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 skipped formal reviews. Phase 10 (Tasks 32-35) ran with one combined Task-34+35 dispatch and zero fix iterations. Tasks 11, 12, 13, 14, 19, 22, 23, 30 generated fix commits via review/concern surfacing.
 
 ## Current state at pause
 
 - Branch: `feature/foundation-core`
-- Last commit: `6da1c57` (Task 31 — correlation-id middleware)
-- Tasks complete: **31 of 40 (77.5%)**
+- Last commit: `d767300` (Task 35 — frontend pages)
+- Tasks complete: **35 of 40 (87.5%)**
 - Working tree: clean (after this state-doc commit)
 - Docker: postgres + seq still running locally (postgres healthy; required for integration tests; Seq optional — Serilog Seq sink fails silently if unreachable)
-- Build: 0 warnings, 0 errors
-- Tests: **56 passing** (6 SharedKernel + 32 PracticeOperations.UnitTests + 18 PracticeOperations.IntegrationTests — +2 CorrelationId tests)
-- Vulnerability scan: clean — 0 NU1903/NU1904 audits (all 3 OTel CVE warnings closed in `2929364`; no `NuGetAuditSuppress` entries in the tree)
-- Dev DB note: still contains stale PascalCase-era migration rows from before Task 19 regeneration; anyone running `dotnet ef database update` against dev needs to drop the `practice_operations` schema first
+- Backend build: 0 warnings, 0 errors; backend tests: **56 passing**
+- Frontend build: `npm run build` green; 314 kB JS / 6 kB CSS gzipped. No frontend tests yet (vitest configured; deferred to a later sub-plan or backfill)
+- Vulnerability scan: clean — 0 NU1903/NU1904 audits
+- Dev DB note: still contains stale PascalCase-era migration rows from before Task 19 regeneration
 
-## Phase 9 (observability) at a glance — completed in this session
+## Phase 10 (frontend shell) at a glance — completed in this session
 
-- Structured logging via Serilog with `Application=accounts-api`, per-request `FirmId`/`UserId`/`CorrelationId` enrichers, Console + Seq sinks
-- Distributed tracing via OpenTelemetry: AspNetCore + HttpClient + EF Core instrumentation; OTLP exporter when `Otlp:Endpoint` set, else ConsoleExporter
-- Correlation-ID middleware reads/echoes `X-Correlation-ID`; runs before SerilogRequestLogging so logged entries carry the real correlation ID
+- Vite + React 19 + TS scaffold at `client/accounts-web/` with Tailwind v3, `@/* → src/*` path alias
+- API client (`src/lib/api.ts`) with typed surface mirroring backend (`firms.register`, `auth.signIn`, `auth.enrollTotp`, `auth.me`); axios interceptor injects bearer token
+- AuthProvider/useAuth (`src/lib/auth.tsx`) — sessionStorage-persisted token with expiry awareness
+- Routes + ProtectedRoute + TopNav + 4 pages (Register / SignIn / EnrollTotp / Dashboard) — full register → sign-in (with TOTP step-up) → dashboard flow
+- Frontend build proven green; manual E2E not run (deferred to Task 40 Playwright)
 
 ## To resume next session
 
 1. Read this file.
 2. Check out `feature/foundation-core`.
 3. Verify Docker: `docker compose -f docker/docker-compose.yml ps`
-4. **Dispatch Task 32**: Vite + React + TS scaffold with Tailwind. Spec in `docs/superpowers/plans/2026-05-11-foundation-core.md` near line 4235. Note: this is a context switch from .NET-land — frontend lives in `client/accounts-web/`.
-5. Phases left: Phase 10 = Vite/React/TS frontend shell (Tasks 32-35); Phase 11 = Docker + GitHub Actions CI/CD (Tasks 36-39); Phase 12 = end-to-end Playwright (Task 40).
+4. **Dispatch Task 36**: Dockerfile for the API. Spec in `docs/superpowers/plans/2026-05-11-foundation-core.md` near line 4816.
+5. Phases left: Phase 11 = Docker + GitHub Actions CI/CD (Tasks 36-39); Phase 12 = end-to-end Playwright (Task 40).
+6. Note for Task 36+: Docker daemon must be running on the host before `docker build`. CI tasks (38-39) don't need anything beyond a valid YAML — they push to GitHub Actions on next merge.
 
 ---
 
@@ -129,7 +140,7 @@
 |---|---|---|
 | Domain research | `accountancy-practice-research.md` | 22-area working model of an SMB UK practice + ecosystem context + candidate domain model. ~165 KB / ~2,400 lines. |
 | Functional requirements spec | `docs/superpowers/specs/2026-05-10-saas-functional-requirements-design.md` | 367 numbered FRs across all 22 areas with cross-cutting requirements (Section 2), per-area template, glossary, 22 open questions. ~133 KB / ~1,290 lines. |
-| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. **31 of 40 executed.** |
+| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. **35 of 40 executed.** |
 
 ## Decisions locked in earlier sessions
 
@@ -176,7 +187,7 @@ What's in Sub-plan 1a:
 - Authentication: email/password + TOTP MFA + JWT bearer ✓
 - Role model from spec §2.2 (FirmOwner, Partner, Manager, FeeEarner, PracticeAdmin) ✓ — policies wired in Task 28
 - Append-only immutable audit log ✓
-- React + TypeScript frontend shell **(pending, Tasks 32–35)**
+- React + TypeScript frontend shell ✓ — Vite + React 19 + Tailwind v3, auth context + 4 pages (register/sign-in/enroll-totp/dashboard)
 - PostgreSQL + EF Core with snake_case ✓
 - Cyber Essentials Plus baseline (MFA, audit log, encryption at rest/in transit) ✓ for auth/audit, TLS via deployment
 - Observability ✓ — Serilog (FirmId/UserId/CorrelationId enrichers, Seq sink), OpenTelemetry (AspNetCore/Http/EFCore instrumentation, OTLP+Console exporters), CorrelationId middleware
@@ -196,4 +207,4 @@ Out of scope here (covered later):
 
 ---
 
-*Continue from this file when resuming. Auth + authz + observability foundations complete — register, sign-in, MFA, JWT bearer, role-gated endpoints all working end-to-end with structured logs (FirmId/UserId/CorrelationId enriched), OTel traces, and correlation-ID header round-trip. Next concrete action is Task 32 (Vite + React + TS scaffold) — start of Phase 10 frontend.*
+*Continue from this file when resuming. Auth + authz + observability + frontend shell all complete. Full register → sign-in (with TOTP step-up) → dashboard loop works end-to-end across the stack. Next concrete action is Task 36 (API Dockerfile) — start of Phase 11 deployment/CI.*
