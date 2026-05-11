@@ -1,7 +1,7 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
-**Last working session:** 2026-05-11 (extended)
-**Status:** **Sub-plan 1a (Foundation Core) is 100% complete — 40 of 40 tasks** on branch `feature/foundation-core`. End-state: register/sign-in/MFA/JWT/role-gated endpoints + structured logging + OTel tracing + correlation-ID + React UI + Docker images + GitHub Actions workflows + Playwright e2e. Next: optional final cross-branch review, then `superpowers:finishing-a-development-branch` (merge to main / PR), then Sub-plan 1b (Foundation Extended).
+**Last working session:** 2026-05-11 (extended; final cross-cutting review completed)
+**Status:** **Sub-plan 1a (Foundation Core) is 100% complete + post-review polish landed** on branch `feature/foundation-core`. 40 plan tasks + 8 review-driven fix commits. End-state: register/sign-in/MFA/JWT/role-gated endpoints + structured logging (with request-summary enrichment via IDiagnosticContext) + OTel tracing + correlation-ID + full audit coverage of FirmRegistered/UserSignedIn/UserSignInFailed + React UI + Docker images + GitHub Actions workflows + Playwright e2e. Backend: 69 tests passing. Next: `superpowers:finishing-a-development-branch` (merge to main / PR), then Sub-plan 1b (Foundation Extended).
 
 ## Tasks completed (commits on `feature/foundation-core`, in order)
 
@@ -61,6 +61,21 @@
 | 39 | `dc31482` | Frontend CI workflow + ESLint setup (eslint.config.js flat, 5 deps: eslint, @eslint/js, typescript-eslint, eslint-plugin-react-hooks, eslint-plugin-react-refresh); `test` script uses `--passWithNoTests` |
 | 40 | `6029708` | Playwright e2e (register→signin→dashboard happy path) + chromium browser install + `.github/workflows/e2e.yml` with postgres service container, dotnet-ef migration step, `ASPNETCORE_ENVIRONMENT=Development` to surface dev appsettings (working JWT secret + DB conn string), `serve` for the SPA, playwright report artifact upload |
 
+## Post-final-review polish (review-driven, after Task 40)
+
+A final cross-cutting reviewer surfaced 3 Critical + 1 Minor + 2 audit-coverage findings. All addressed in two batches (Batch 1 = 3 Criticals; Batch 2 = Minor #15 + audit coverage; + 1 follow-up test). 13 new tests added (56 → 69). Importants captured below as trackers.
+
+| # | Commit | Description |
+|---|---|---|
+| FR-1 | `267632d` | fix(auth): fail-fast on empty or short `Jwt:Issuer/Audience/Secret` at startup; was previously a latent Production-boot footgun (`JwtIssuer` only null-guarded; empty strings passed through to `SymmetricSecurityKey("")`) — 4 new tests |
+| FR-2 | `b7e8363` | fix(persistence): `IUserRepository.GetAsync(UserId)` no longer `IgnoreQueryFilters()` — the API reads as tenant-safe and now is. `GetByEmailAcrossFirmsAsync` keeps its opt-in filter bypass; no new `GetAcrossFirmsAsync` variant introduced. 2 new tests |
+| FR-3 | `2c1dbbe` | fix(observability): reorder middleware to `CorrelationId → SerilogRequestLogging → Auth → Authz → TenantLogContext`. **Plus added `IDiagnosticContext.Set()` calls in `UseTenantLogContext`** — `LogContext.PushProperty` uses `AsyncLocal` and pops on dispose BEFORE `RequestLoggingMiddleware` emits its summary; `IDiagnosticContext` is the Serilog.AspNetCore-native mechanism for adding properties to the request-completion event. Dual-push (LogContext + DiagnosticContext) is required: LogContext for in-request handler logs, DiagnosticContext for the request-summary line. 2 new tests |
+| FR-4 | `891ca5a` | refactor(persistence): relocate `TenantTestRow` out of production `Domain/_Test/` — it was a test fixture that had been creating a real `tenant_test_rows` table in every production database via the `Initial` migration. New `DropTenantTestRowFromProductionSchema` migration. Test-side `TestModelCustomizer : RelationalModelCustomizer` (registered via `services.Replace<IModelCustomizer>` in `ApiFactory`) re-registers the entity in the test model; `ApiFactory` recreates the table via raw `CREATE TABLE IF NOT EXISTS` after migrations run. Required adding `InternalsVisibleTo` on Infrastructure to expose `PracticeOperationsDbContext.CurrentFirmId` to the customizer for filter replication |
+| FR-5 | `0745dda` | feat(audit): `IAuditWriter.WriteExplicitAsync(FirmId?, UserId?, subject, metadata, ct)` overload for pre-auth-context events. `AuditEventAllowsNullFirmAndSubject` migration makes `firm_id` nullable and adds `subject varchar(320)`. **`AuditEvent` no longer implements `ITenantScopedEntity`** — incompatible with nullable FirmId; provenance enforced at the `AuditEvent.RecordExplicit` domain factory (throws if both `firmId` AND `subject` are null). All audit read sites verified explicit-firm-filtered; `AuditLogTests` updated to filter by FirmId. Original context-pulling `RecordAsync` overload retained for normal flows |
+| FR-6 | `e74ce8f` | feat(audit): audit `FirmRegistered` from `RegisterFirmHandler` (anonymous-flow → handler-direct call rather than `IAuditedCommand`). Audit row carries new firm's ID, owner's ID, and `{FirmName, FirmSlug}` metadata. Trade-off: audit write is in a separate save call after the registration UoW commits — favoring availability over compliance completeness; tracked as #22 below |
+| FR-7 | `7871af0` | feat(audit): audit `UserSignedIn` success + `UserSignInFailed` for all 3 failure modes (UserNotFound with `firm_id=null, actor_user_id=null, subject=attemptedEmail, Reason=UserNotFound`; BadPassword with `subject=email, Reason=BadPassword`; BadTotp similar). Two integration tests (success + UserNotFound + BadPassword) |
+| FR-8 | `649f9de` | test(audit): BadTotp integration test (registers firm, signs in, enrolls TOTP via `/api/auth/enroll-totp`, attempts sign-in with TOTP code `000000`, asserts `UserSignInFailed`/`Reason=BadTotp` audit row) |
+
 ## Auth surface now complete
 
 - `POST /api/firms/register` — creates Firm + owner User (`PendingVerification` status)
@@ -107,28 +122,56 @@
 
 ## Open follow-up tasks (tracker IDs)
 
-- **#14:** Add test data cleanup to tenant integration tests (Respawn / `ExecuteDeleteAsync IgnoreQueryFilters` / transaction rollback). Pending. Becoming more pressing — we now have 14 integration tests, several creating Firm+User combinations with unique slugs/emails per run, but no cleanup between runs.
-- **#17:** Add `(firm_id, actor_user_id, occurred_at)` audit index + AuditAction XML doc. Pending.
-- **#19:** Document persistence conventions (snake_case adoption, no manual HasColumnName, schema name, migration history table, consolidated-migration rationale) — `docs/conventions/persistence.md` or README section. Pending.
-- **#20:** Move dev DB password AND JWT secret to `dotnet user-secrets`. Pending. JWT secret added to the same file in Task 26 so the issue compounded.
-- **Closed during this run:** #15 (CA1861 .editorconfig — Task 19), #16 (column naming — Task 19), #18 (Task 19 reviews — Task 19a), #21 (ConflictException — Task 23)
+Pre-existing trackers carried forward:
+- **#14:** Add test data cleanup to tenant integration tests (Respawn / `ExecuteDeleteAsync IgnoreQueryFilters` / transaction rollback). Now MORE pressing — 24 integration tests creating Firm+User combinations.
+- **#17:** Add `(firm_id, actor_user_id, occurred_at)` audit index + AuditAction XML doc.
+- **#19:** Document persistence conventions (snake_case adoption, no manual HasColumnName, schema name, migration history table, consolidated-migration rationale) — `docs/conventions/persistence.md` or README section.
+- **#20:** Move dev DB password AND JWT secret to `dotnet user-secrets`.
+
+New trackers from final cross-cutting review (Sub-plan 1b candidates unless flagged otherwise):
+
+Security-track:
+- **#22:** Audit write should be in same transaction as state change (currently `RegisterFirmHandler` and `SignInHandler` write audit via a separate `SaveChangesAsync` after the main UoW commits — if the audit save fails, the registration/sign-in still succeeds with no audit trail). Compliance-vs-availability trade-off; either restructure to a single transaction boundary or add an outbox/retry pattern. Decision deferred.
+- **#23:** Authorization policy negative-path coverage tests — 5 staff roles × 4 policies admit/reject matrix. Today only `RequireFirmOwner` is exercised; `RequirePartnerOrAbove` and `RequireManagerOrAbove` are unused and untested.
+- **#24:** Real-entity tenant-isolation integration test using `User`/`AuditEvent` (current `TenantIsolationTests` only covers the synthetic `TenantTestRow`).
+- **#25:** Explicit CORS policy — currently no `AddCors`/`UseCors`; deployment topology assumes single-origin reverse proxy but it's undocumented.
+- **#26:** Rate limiting on `/api/auth/sign-in` and `/api/firms/register` via `AddRateLimiter` (token-bucket per remote IP + per email).
+- **#27:** Bump `PasswordHasherOptions.IterationCount` to 600,000 (OWASP 2023 guidance for SHA-256; currently using `PasswordHasher<TUser>` default of 100k).
+- **#28:** Encrypt `users.totp_secret` at column level (DataProtection-backed value converter or pgcrypto). Currently stored as plaintext Base32.
+- **#34:** Frontend JWT in `sessionStorage` — standard XSS exposure. Acceptable for MVP; revisit when AI-native features start dynamically rendering content.
+
+CI/CD-track:
+- **#29:** Harden `e2e.yml` API readiness probe — currently `dotnet run &` + `wait-on /health`; a crashed API manifests as a Playwright timeout. Convert to docker-compose service with healthcheck, or wrap in a real process supervisor.
+- **#30:** Add explanatory comment to `backend.yml` that integration tests depend on Docker (Testcontainers) being present on the runner — currently implicit via `ubuntu-latest`.
+
+Correctness/docs-track:
+- **#31:** `SignInValidator.cs` uses `.EmailAddress()` (lax) while `RegisterFirmValidator` uses the strict `EmailAddress.RegexPattern` const — add a one-line comment on the validator explaining why (sign-in UX wants the same 401 regardless of email format).
+- **#32:** `JwtIssuer` constructor should validate `Jwt:LifetimeMinutes > 0` (currently a misconfigured negative value would produce already-expired tokens).
+- **#33:** README update for end-state surface (auth surface, four bounded contexts, Docker invocation, CI workflow expectations).
+- **#35:** `AuditEventConfiguration` write-side `v!.Value.Value` for nullable `ActorUserId` is misleading (EF doesn't call write-converters for nulls so no runtime NRE risk, but the null-forgiving operator confuses readers). Replace with `v?.Value.Value` or explicit ternary.
+- **#36:** Add unit test for `AuditEvent.RecordExplicit` both-null guard (asserts throw when `firmId` AND `subject` are both null).
+
+Closed during this run: #15 (CA1861 .editorconfig — Task 19), #16 (column naming — Task 19), #18 (Task 19 reviews — Task 19a), #21 (ConflictException — Task 23). The final-review #1/#2/#3 Criticals + Minor #15 + audit coverage (FR-1 through FR-8 above) were all fixed inline rather than tracked.
 
 ## Execution metrics — final
 
-~45 implementer dispatches + ~16 reviewer dispatches + 5 inline fix dispatches = ~66 subagent dispatches across 40 tasks. Average ~1.65 subagents per task — declined steadily as conventions hardened. Tasks 8, 10, 15, 16, 17, 18, 20, 21, 24-40 skipped formal review pairs (verbatim/small/well-tested). Tasks 11, 12, 13, 14, 19, 22, 23, 30, 36 generated fix commits via review-or-controller concern surfacing. Phases 9-12 (observability + frontend + Docker + CI + e2e) ran almost entirely on the first dispatch attempt with concerns caught at handoff rather than via formal reviewers.
+Plan execution: ~45 implementer + ~16 reviewer + 5 inline-fix dispatches = ~66 subagent dispatches across 40 tasks. Average ~1.65 subagents per task. Tasks 8, 10, 15, 16, 17, 18, 20, 21, 24-40 skipped formal review pairs (verbatim/small/well-tested). Tasks 11, 12, 13, 14, 19, 22, 23, 30, 36 generated fix commits via review-or-controller concern surfacing. Phases 9-12 ran almost entirely on the first dispatch attempt.
 
-## Current state — Foundation Core complete
+Post-review polish: 1 final-reviewer + 2 implementer batches + 2 batch reviewers + 1 follow-on fix = 6 dispatches across 8 fix commits.
+
+## Current state — Foundation Core complete + reviewed + polished
 
 - Branch: `feature/foundation-core`
-- Last commit: `6029708` (Task 40 — Playwright e2e + CI workflow)
-- Tasks complete: **40 of 40 (100%)**
+- Last commit: `649f9de` (FR-8 — BadTotp audit integration test)
+- Tasks complete: **40 of 40 (100%)** + 8 review-driven fix commits
 - Working tree: about to commit final state-doc update; otherwise clean
-- Docker: postgres + seq running locally; both `accounts-api:dev` (355 MB) and `accounts-web:dev` (93 MB) images built clean
-- Backend build: 0 warnings, 0 errors; **56 backend tests passing** (6 SharedKernel + 32 UnitTests + 18 IntegrationTests)
+- Docker: postgres + seq running locally; both `accounts-api:dev` and `accounts-web:dev` images built clean
+- Backend build: 0 warnings, 0 errors; **69 backend tests passing** (6 SharedKernel + 32 UnitTests + 31 IntegrationTests)
 - Frontend build: `npm run build` green (314 kB JS / 6 kB CSS gzipped); `npm run lint` clean (1 architectural warning); `npm run test` 0 (no vitest tests yet — deferred)
 - Playwright: 1 e2e test (`signin.spec.ts`) listed cleanly; chromium browser installed locally; full e2e execution happens in CI
 - CI workflows present: `backend.yml`, `frontend.yml`, `e2e.yml` (await first push to validate; not yet executed)
 - Vulnerability scan: clean (0 NU1903/NU1904 audits)
+- Migrations: 3 total — `Initial` (consolidated), `DropTenantTestRowFromProductionSchema`, `AuditEventAllowsNullFirmAndSubject`
 - Dev DB note: still contains stale PascalCase-era migration rows from before Task 19 regeneration (Sub-plan 1b housekeeping)
 
 ## End-state surface
@@ -159,9 +202,8 @@ Cross-cutting:
 
 1. Read this file.
 2. Check out `feature/foundation-core`.
-3. **Recommended next action: Dispatch a final cross-branch code reviewer subagent** to look at the integration surface (cross-cutting concerns: multi-tenancy + auth + audit + observability + CI gate-passing) and produce a single review report. This is the SDD-skill's sanctioned end-of-plan step before merging.
-4. **After review fixes (if any): use `superpowers:finishing-a-development-branch`** to merge to main / open a PR. Then close out tracker #14, #17, #19, #20 (see below) either before-merge or in a follow-up cleanup commit.
-5. **Next sub-plan: Sub-plan 1b (Foundation Extended)** — M365 + Google SSO, integration-framework skeleton, data-class tagging + retention framework. Most of the still-open trackers (#14, #19, #20) belong there; #17 (audit indexes) could land in either.
+3. **Recommended next action: invoke `superpowers:finishing-a-development-branch`** to merge to main / open a PR. Foundation Core is plan-complete, final-reviewed, and post-review polished — no outstanding fix work remains. The 17 open trackers below all belong to Sub-plan 1b unless otherwise noted.
+4. **Next sub-plan: Sub-plan 1b (Foundation Extended)** — M365 + Google SSO, integration-framework skeleton, data-class tagging + retention framework, plus the security hardening and coverage trackers (#22-#36) accumulated above.
 
 ---
 
@@ -238,4 +280,4 @@ Out of scope here (covered later):
 
 ---
 
-*Foundation Core sub-plan 1a is **complete**. All 40 tasks done, build green, 56 tests passing, both Docker images built, three CI workflows in place, Playwright happy-path test runs against the postgres-service CI surface. Next concrete action is a final cross-branch reviewer dispatch, followed by `superpowers:finishing-a-development-branch`, then Sub-plan 1b.*
+*Foundation Core sub-plan 1a is **complete and post-review polished**. All 40 tasks done, final cross-cutting review run + 3 Criticals + Minor #15 + audit coverage gaps fixed (8 fix commits, 13 new tests, 56 → 69), build green, both Docker images built, three CI workflows in place, Playwright happy-path test runs against the postgres-service CI surface. Next concrete action: `superpowers:finishing-a-development-branch`, then Sub-plan 1b.*
