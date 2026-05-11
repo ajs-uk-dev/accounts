@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Accounts.PracticeOperations.Application.Abstractions;
 using Accounts.PracticeOperations.Domain.Audit;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
+using Accounts.SharedKernel.Identity;
 using Accounts.SharedKernel.Time;
 using Microsoft.AspNetCore.Http;
 
@@ -38,6 +40,33 @@ public sealed class EfAuditWriter : IAuditWriter
 
         var evt = AuditEvent.Record(
             firmId, _ctx.UserId, action, entityType, entityId, payload, correlationId, _clock.UtcNow);
+
+        _db.Set<AuditEvent>().Add(evt);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task WriteExplicitAsync(
+        AuditAction action,
+        FirmId? firmId,
+        UserId? actorUserId,
+        string? subject,
+        IReadOnlyDictionary<string, string>? metadata,
+        CancellationToken ct = default)
+    {
+        if (action == AuditAction.Unknown)
+            throw new ArgumentOutOfRangeException(nameof(action), "AuditAction.Unknown must not be recorded.");
+
+        var correlationId = _http.HttpContext?.TraceIdentifier;
+        var payload = metadata is not null ? JsonSerializer.Serialize(metadata) : null;
+
+        var evt = AuditEvent.RecordExplicit(
+            firmId, actorUserId, action,
+            entityType: action.ToString(),
+            entityId: firmId?.ToString() ?? subject ?? string.Empty,
+            subject: subject,
+            payload: payload,
+            correlationId: correlationId,
+            occurredAt: _clock.UtcNow);
 
         _db.Set<AuditEvent>().Add(evt);
         await _db.SaveChangesAsync(ct);

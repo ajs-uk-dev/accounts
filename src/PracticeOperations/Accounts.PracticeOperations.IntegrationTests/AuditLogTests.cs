@@ -43,7 +43,10 @@ public class AuditLogTests
         using (var scope = api.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<PracticeOperationsDbContext>();
-            var rows = await db.Set<AuditEvent>().ToListAsync();
+            // AuditEvent is not tenant-scoped; filter explicitly by FirmId.
+            var rows = await db.Set<AuditEvent>()
+                .Where(e => e.FirmId == firm)
+                .ToListAsync();
             rows.Should().HaveCount(1);
             rows[0].FirmId.Should().Be(firm);
             rows[0].Action.Should().Be(AuditAction.UserSignedIn);
