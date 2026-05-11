@@ -1,7 +1,7 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
-**Last working session:** 2026-05-11 (extended; final cross-cutting review completed)
-**Status:** **Sub-plan 1a (Foundation Core) is 100% complete + post-review polish landed** on branch `feature/foundation-core`. 40 plan tasks + 8 review-driven fix commits. End-state: register/sign-in/MFA/JWT/role-gated endpoints + structured logging (with request-summary enrichment via IDiagnosticContext) + OTel tracing + correlation-ID + full audit coverage of FirmRegistered/UserSignedIn/UserSignInFailed + React UI + Docker images + GitHub Actions workflows + Playwright e2e. Backend: 69 tests passing. Next: `superpowers:finishing-a-development-branch` (merge to main / PR), then Sub-plan 1b (Foundation Extended).
+**Last working session:** 2026-05-11 (extended; final review + GitHub setup + PR opened)
+**Status:** **Sub-plan 1a (Foundation Core) shipped — PR #1 open** at https://github.com/ajs-uk-dev/accounts/pull/1. 40 plan tasks + 8 review-driven fix commits on `feature/foundation-core` (62-commit PR diff against `main` which is at the bootstrap commit `536471e`). End-state: register/sign-in/MFA/JWT/role-gated endpoints + structured logging (with request-summary enrichment via IDiagnosticContext) + OTel tracing + correlation-ID + full audit coverage of FirmRegistered/UserSignedIn/UserSignInFailed + React UI + Docker images + GitHub Actions workflows + Playwright e2e. Backend: 69 tests passing locally. **Awaiting first CI run on the PR + your merge decision.** Then Sub-plan 1b (Foundation Extended).
 
 ## Tasks completed (commits on `feature/foundation-core`, in order)
 
@@ -201,9 +201,33 @@ Cross-cutting:
 ## To resume next session
 
 1. Read this file.
-2. Check out `feature/foundation-core`.
-3. **Recommended next action: invoke `superpowers:finishing-a-development-branch`** to merge to main / open a PR. Foundation Core is plan-complete, final-reviewed, and post-review polished — no outstanding fix work remains. The 17 open trackers below all belong to Sub-plan 1b unless otherwise noted.
-4. **Next sub-plan: Sub-plan 1b (Foundation Extended)** — M365 + Google SSO, integration-framework skeleton, data-class tagging + retention framework, plus the security hardening and coverage trackers (#22-#36) accumulated above.
+2. Check the PR: https://github.com/ajs-uk-dev/accounts/pull/1
+   - If CI is green and you've merged → proceed to step 5
+   - If CI is red → fix locally on `feature/foundation-core`, commit, push (the PR auto-updates). Most likely friction: `e2e.yml` API readiness probe (tracker #29) or Testcontainers Docker availability on the runner (tracker #30)
+   - If unmerged → review the 62-commit diff and merge when ready (suggested strategy: merge-commit to preserve the per-task forensic trail; squash if you want one tidy commit)
+3. **After PR merge:** pull main locally (`git checkout main && git pull`), optionally delete `feature/foundation-core` both locally and on the remote.
+4. **GitHub state to be aware of:**
+   - Remote `origin` = https://github.com/ajs-uk-dev/accounts.git (public)
+   - Remote `main` was force-pushed once during PR setup (from auto-init `411976c` to our bootstrap `536471e`) — fine going forward
+   - Default branch is `main`
+   - 3 CI workflows triggered on push/pull_request: `backend.yml`, `frontend.yml`, `e2e.yml`
+5. **Then start Sub-plan 1b (Foundation Extended).** Recommended opening move: use `superpowers:brainstorming` to scope which of the 17 trackers + the planned 1b features (M365/Google SSO, integration-framework skeleton, retention framework) belong in one plan vs split. Trackers ranked by my read of urgency:
+   - **Urgent before 1b ships:** #14 (test data cleanup — every integration test currently bleeds state), #20 (user-secrets), #26 (rate-limiting on auth endpoints), #28 (encrypt TOTP secret at rest)
+   - **Should land during 1b:** #22 (audit transaction boundary), #23 (authz policy negative-path matrix), #24 (real-entity isolation test), #25 (CORS), #27 (PBKDF2 to 600k), #29 (e2e readiness), #34 (frontend XSS posture)
+   - **Doc/nit, defer to convenience:** #17, #19, #30, #31, #32, #33, #35, #36
+6. **Sub-plan 1b's scope per the original decomposition:** M365 + Google SSO, integration-framework skeleton, data-class tagging + retention framework. The trackers above slot in alongside.
+
+## PR-specific state (current open work)
+
+- **PR:** #1 — https://github.com/ajs-uk-dev/accounts/pull/1
+- **Title:** Foundation Core — sub-plan 1a (40 plan tasks + 8 review-driven fixes)
+- **Base:** `main` (at `536471e`)
+- **Head:** `feature/foundation-core` (at `9d88071`)
+- **Diff:** 62 commits (everything from `a7fb188` through `9d88071`)
+- **Local branches:**
+  - `feature/foundation-core` at `9d88071` (PR head; can take iteration commits if needed)
+  - `main` at `536471e` (matches remote; needs `git pull` after merge to advance)
+- **Working tree at session end:** clean except for one uncommitted edit to PROJECT-STATE.md (this very update — see commit history)
 
 ---
 
@@ -280,4 +304,4 @@ Out of scope here (covered later):
 
 ---
 
-*Foundation Core sub-plan 1a is **complete and post-review polished**. All 40 tasks done, final cross-cutting review run + 3 Criticals + Minor #15 + audit coverage gaps fixed (8 fix commits, 13 new tests, 56 → 69), build green, both Docker images built, three CI workflows in place, Playwright happy-path test runs against the postgres-service CI surface. Next concrete action: `superpowers:finishing-a-development-branch`, then Sub-plan 1b.*
+*Foundation Core sub-plan 1a is **shipped — PR #1 open** at https://github.com/ajs-uk-dev/accounts/pull/1. All 40 tasks done, final cross-cutting review run + 3 Criticals + Minor #15 + audit coverage gaps fixed (8 fix commits, 13 new tests, 56 → 69), build green, both Docker images built, three CI workflows in place. Awaiting first CI run + merge decision. Then Sub-plan 1b.*
