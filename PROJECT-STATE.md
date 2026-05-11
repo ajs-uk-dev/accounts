@@ -1,7 +1,7 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
 **Last working session:** 2026-05-11
-**Status:** Paused after Task 10. Executing Sub-plan 1a (Foundation Core) via subagent-driven-development. **10 of 40 tasks complete** on branch `feature/foundation-core`. Next: **Task 11** (cross-tenant isolation integration test — first test that actually exercises the query filter via a temporary `TenantTestRow` entity).
+**Status:** Paused after Task 19 implementation (reviews skipped per user pause). Executing Sub-plan 1a (Foundation Core) via subagent-driven-development. **19 of 40 tasks complete** on branch `feature/foundation-core`. Next: **Task 19 reviews + follow-ups** (spec compliance review, code quality review for snake_case adoption + consolidated migration + ApiFactory fix), then Task 20 (Repository abstractions + EF implementations).
 
 **Tasks completed (commits on `feature/foundation-core`, in order):**
 | # | Commit | Description |
@@ -14,21 +14,62 @@
 | 5 | `0f2faee` | PracticeOperations DbContext skeleton + DI registration |
 | 6 | `b9db07c` | Web composition root + /health endpoint (DB-check) |
 | 7 | `1b158a6` | Integration test infra: PostgresFixture, ApiFactory, HealthCheckTests |
-| 8 | `48a8aa4` | Initial empty EF migration |
+| 8 | `48a8aa4` | Initial empty EF migration (later regenerated in Task 19) |
 | 9 | `8530c41` | IFirmContext abstraction + HttpContext-backed accessor in Web |
-| 10 | `ed9b1fe` | DbContext applies ITenantScopedEntity global query filter (currently inert — no entities implement the marker yet) |
+| 10 | `ed9b1fe` | DbContext applies ITenantScopedEntity global query filter (filter expression later fixed in Task 11) |
+| 11 | `03dd4cc` | Cross-tenant isolation integration test via TenantTestRow; rewrote Task 10 filter to use FirmId-on-both-sides (Npgsql translatable) |
+| – | `5731cbd` | docs(state): pause after Task 10 record |
+| 12 | `82366cb` | AuditEvent entity + EF configuration + migration (later regenerated in Task 19) |
+| 13 | `e72c89b` | IAuditWriter + EfAuditWriter; append-only enforced in SaveChanges; FrameworkReference Microsoft.AspNetCore.App superseded transitively the System.Security.Cryptography.Xml CVE pin |
+| 13a | `6618439` | Fix(audit): guard moved to 2-arg SaveChanges leaf overloads; dead CPM pins dropped |
+| 14 | `3113cfa` | MediatR AuditingBehavior pipeline (no audited commands exist yet) |
+| 15 | `fd7862a` | EmailAddress value object with validation + lowercase normalization |
+| 16 | `2c1bf91` | Role, UserStatus, FirmStatus enums |
+| 17 | `1450c73` | Firm aggregate with Register/Activate + FirmRegistered event |
+| 18 | `7fd14bc` | User aggregate with Register/Activate/EnrollTotp + RecordSuccessful/FailedSignIn + UserRegistered event |
+| 19 | `0d87bed` | EF mappings for Firm + User; adopted snake_case via EFCore.NamingConventions 10.0.1; **regenerated to single consolidated Initial migration**; .editorconfig CA1861 suppression for Migrations folder; **fixed ApiFactory test-fixture bug** (tests had been hitting dev DB not testcontainer) |
 
 **Plan deviations to be aware of** (already documented in plan file):
 - Task 2: test-tool package versions bumped to SDK-template baseline; `coverlet.collector` 6.0.4 added (test-tooling only)
 - Task 3: `SEQ_FIRSTRUN_NOAUTHENTICATION: "true"` required for Seq 2025.2+ local dev
 - Task 4: `CA1000` suppressed in-file on `Result<T>`; `CA1707` suppressed in test csprojs (xunit naming)
-- Task 5: `System.Security.Cryptography.Xml 10.0.7` pinned to mitigate CVE in EF Design's transitive deps
-- Task 6: 5th package required for `AddDbContextCheck<T>` (`Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`); EF Core bumped to 10.0.7
-- Task 7: `CA1711` suppression added (xunit `[CollectionDefinition]` marker-type naming). Test goes GREEN immediately not RED — `Migrate()` no-op + `CanConnectAsync()` only. Plan updated to reflect this.
+- Task 5: `System.Security.Cryptography.Xml 10.0.7` pinned to mitigate CVE — pin removed in Task 13 (FrameworkReference supersedes)
+- Task 6: 5th package required for `AddDbContextCheck<T>`; EF Core bumped to 10.0.7
+- Task 7: `CA1711` suppression added (xunit `[CollectionDefinition]` marker-type naming); test goes GREEN immediately not RED
+- Task 10: Original query filter `e.FirmId.Value == CurrentFirmIdRaw` was Npgsql-untranslatable; Task 11 rewrote to `e.FirmId == CurrentFirmId.Value`
+- Task 11: CA1861 hoist in scaffolded migration (recurring; resolved globally in Task 19 via .editorconfig)
+- Task 12: FluentAssertions added via CPM versionless ref (plan's `dotnet add package` was wrong); CA1861 hoist again
+- Task 13: AuditAction.Unknown rejection added; FrameworkReference Microsoft.AspNetCore.App adopted; 3 PackageReferences pruned (NU1510); CVE pin no longer needed; guard moved to 2-arg SaveChanges leaf overloads in follow-up commit `6618439`
+- Task 14: CA1725 rename `ct` → `cancellationToken` to match MediatR 12.x interface base parameter
+- Task 17: en-dash in error message replaced with ASCII hyphen
+- Task 19 (largest deviation): adopted snake_case naming convention project-wide; regenerated all migrations as one consolidated `Initial`; added `.editorconfig` glob suppression for CA1861 in Migrations folder; **fixed latent ApiFactory bug** where tests had been hitting the dev DB rather than the Testcontainer because `ConfigureAppConfiguration` was being overridden by SUT's `appsettings.json` (switched to `UseSetting`); moved dev connection string to `appsettings.Development.json`. Dev DB has stale migration history — anyone running `dotnet ef database update` against it needs to drop the schema first.
 
-**Execution metrics:** 10 implementer dispatches + 7 reviewer dispatches = 17 subagent dispatches. Avg ~1.7 reviewers per task (some combined, some skipped for pure tooling output like Task 8).
+**Open follow-up tasks (tracker IDs):**
+- #14: Add test data cleanup to tenant integration tests (Respawn / `ExecuteDeleteAsync IgnoreQueryFilters` / transaction rollback) before more tenant-scoped tests pile on. Pending.
+- #15: CA1861 .editorconfig suppression — **done as part of Task 19**.
+- #16: Decide column naming convention — **done as part of Task 19** (snake_case adopted).
+- #17: Add `(firm_id, actor_user_id, occurred_at)` index + AuditAction docs. Pending.
+- **NEW (from Task 19):** Reviews of commit `0d87bed` not yet run. Spec compliance + code quality review for: snake_case adoption, consolidated Initial migration shape, ApiFactory `UseSetting` fix, dropped HasColumnName calls. Pending.
 
-**To resume tomorrow:** Read this file, check out `feature/foundation-core`, ensure Docker is running (`docker compose -f docker/docker-compose.yml up -d`), then dispatch the implementer for Task 11. The Task 11 spec is in `docs/superpowers/plans/2026-05-11-foundation-core.md` under "### Task 11".
+**Execution metrics through Task 19:** ~24 implementer dispatches + ~14 reviewer dispatches + 1 fix dispatch = ~39 subagent dispatches. Avg ~2.1 subagents per task. Tasks 8, 10, 15, 16, 17, 18 skipped formal reviews (small/verbatim/pure-tooling). Task 19 reviews still owed.
+
+**Current state at pause:**
+- Branch: `feature/foundation-core`
+- Last commit: `0d87bed` (Task 19 — snake_case + Firm/User EF + ApiFactory fix)
+- Tasks complete: 19 of 40 (47.5%)
+- Working tree: clean
+- Docker: postgres + seq running (postgres healthy as of last check)
+- Build: 0 warnings, 0 errors
+- Tests: 31 passing (6 SharedKernel + 20 PracticeOperations.UnitTests + 5 PracticeOperations.IntegrationTests)
+- Vulnerability scan: clean
+- Dev DB note: contains stale PascalCase-era migration rows; drop `practice_operations` schema if running `dotnet ef database update`
+
+**To resume tomorrow:**
+1. Read this file
+2. Check out `feature/foundation-core`
+3. Verify Docker: `docker compose -f docker/docker-compose.yml ps`
+4. **Decide first**: run Task 19 spec/quality reviews now (paused at implementer DONE_WITH_CONCERNS), or trust the implementer report and proceed. Task 19 had the biggest deviation set so far; reviews would be valuable. Especially worth reviewing: the migration shape (snake_case columns, jsonb, composite indexes, unique constraints), the ApiFactory `UseSetting` fix correctness, and the consolidated `Initial` migration not silently dropping any constraints from the prior 3 migrations.
+5. Then dispatch Task 20 (Repository abstractions + EF implementations). The Task 20 spec is in `docs/superpowers/plans/2026-05-11-foundation-core.md` near line 2687.
 
 ---
 
