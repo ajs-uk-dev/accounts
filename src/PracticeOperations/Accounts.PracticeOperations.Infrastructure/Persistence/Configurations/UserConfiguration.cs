@@ -21,9 +21,9 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(x => x.Email)
             .HasConversion(
                 v => v.Value,
-                v => EmailAddress.Create(v).Value!)
+                v => FromDb(v))
             .HasMaxLength(256).IsRequired();
-        b.HasIndex(nameof(User.FirmId), nameof(User.Email)).IsUnique();
+        b.HasIndex(x => new { x.FirmId, x.Email }).IsUnique();
 
         b.Property(x => x.PasswordHash).HasMaxLength(512).IsRequired();
         b.Property(x => x.Role).HasConversion<string>().HasMaxLength(32).IsRequired();
@@ -36,4 +36,9 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(x => x.UpdatedAt).IsRequired();
         b.Ignore(x => x.DomainEvents);
     }
+
+    private static EmailAddress FromDb(string value) =>
+        EmailAddress.Create(value).Value
+        ?? throw new InvalidOperationException(
+            $"Stored email '{value}' failed validation; possible data corruption.");
 }
