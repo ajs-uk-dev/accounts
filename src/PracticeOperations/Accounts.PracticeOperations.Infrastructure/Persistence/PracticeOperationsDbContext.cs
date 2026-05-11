@@ -50,4 +50,26 @@ public class PracticeOperationsDbContext : DbContext
             e => CurrentFirmId == null || e.FirmId == CurrentFirmId.Value;
         modelBuilder.Entity<TEntity>().HasQueryFilter(filter);
     }
+
+    public override int SaveChanges()
+    {
+        GuardAuditAppendOnly();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        GuardAuditAppendOnly();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void GuardAuditAppendOnly()
+    {
+        foreach (var entry in ChangeTracker.Entries<Accounts.PracticeOperations.Domain.Audit.AuditEvent>())
+        {
+            if (entry.State is EntityState.Modified or EntityState.Deleted)
+                throw new InvalidOperationException(
+                    "AuditEvent is append-only; updates and deletes are not permitted.");
+        }
+    }
 }

@@ -1,4 +1,7 @@
+using Accounts.PracticeOperations.Application.Abstractions;
+using Accounts.PracticeOperations.Infrastructure.Audit;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
+using Accounts.SharedKernel.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +20,10 @@ public static class DependencyInjection
         services.AddDbContext<PracticeOperationsDbContext>(opts =>
             opts.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsHistoryTable("__ef_migrations", "practice_operations")));
+
+        services.AddSingleton<IClock, SystemClock>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<IAuditWriter, EfAuditWriter>();
 
         return services;
     }
