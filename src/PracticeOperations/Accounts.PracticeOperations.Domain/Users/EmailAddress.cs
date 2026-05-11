@@ -7,8 +7,10 @@ namespace Accounts.PracticeOperations.Domain.Users;
 public sealed class EmailAddress : ValueObject
 {
     // RFC-5322 simplified: one @, non-empty local, dot in domain.
-    private static readonly Regex Pattern =
-        new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
+    // Exposed so the FluentValidation rule and the value object stay in lockstep.
+    public const string RegexPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+
+    private static readonly Regex Pattern = new(RegexPattern, RegexOptions.Compiled);
 
     public string Value { get; }
 

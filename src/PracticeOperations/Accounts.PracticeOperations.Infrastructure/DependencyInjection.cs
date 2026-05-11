@@ -40,6 +40,7 @@ public static class DependencyInjection
             cfg.RegisterServicesFromAssembly(typeof(IFirmContext).Assembly); // Application asm
         });
         services.AddValidatorsFromAssembly(typeof(IFirmContext).Assembly);
+        // Order matters: validation runs first so invalid commands do not produce audit records.
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AuditingBehavior<,>));
 

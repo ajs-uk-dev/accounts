@@ -2,6 +2,7 @@ using Accounts.PracticeOperations.Application.Abstractions;
 using Accounts.PracticeOperations.Application.Firms.Register;
 using Accounts.PracticeOperations.Domain.Firms;
 using Accounts.PracticeOperations.Domain.Users;
+using Accounts.SharedKernel.Identity;
 using Accounts.SharedKernel.Time;
 using FluentAssertions;
 using NSubstitute;
@@ -39,10 +40,12 @@ public class RegisterFirmHandlerTests
     public async Task Fails_when_slug_already_taken()
     {
         var firms = Substitute.For<IFirmRepository>();
+        var users = Substitute.For<IUserRepository>();
+        var uow = Substitute.For<IUnitOfWork>();
         firms.GetBySlugAsync("acme").Returns(Firm.Register("Acme", "acme", DateTimeOffset.UtcNow));
         var handler = new RegisterFirmHandler(
-            firms, Substitute.For<IUserRepository>(),
-            Substitute.For<IPasswordHasher>(), Substitute.For<IUnitOfWork>(),
+            firms, users,
+            Substitute.For<IPasswordHasher>(), uow,
             Substitute.For<IClock>());
 
         var act = () => handler.Handle(
@@ -50,5 +53,38 @@ public class RegisterFirmHandlerTests
             CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*slug*taken*");
+        await firms.DidNotReceive().AddAsync(Arg.Any<Firm>());
+        await users.DidNotReceive().AddAsync(Arg.Any<User>());
+        await uow.DidNotReceive().SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Fails_when_email_already_registered()
+    {
+        var firms = Substitute.For<IFirmRepository>();
+        var users = Substitute.For<IUserRepository>();
+        var uow = Substitute.For<IUnitOfWork>();
+        firms.GetBySlugAsync("acme").Returns((Firm?)null);
+        // An existing user with that email (in any firm) blocks the registration.
+        var existingFirmId = new FirmId(Guid.NewGuid());
+        var existingUser = User.Register(
+            existingFirmId,
+            EmailAddress.Create("alice@example.com").Value!,
+            "$existing$",
+            Role.FirmOwner,
+            DateTimeOffset.UtcNow);
+        users.GetByEmailAcrossFirmsAsync("alice@example.com").Returns(existingUser);
+
+        var handler = new RegisterFirmHandler(
+            firms, users, Substitute.For<IPasswordHasher>(), uow, Substitute.For<IClock>());
+
+        var act = () => handler.Handle(
+            new RegisterFirmCommand("Acme", "acme", "alice@example.com", "long-enough-pwd"),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*alice@example.com*already registered*");
+        await firms.DidNotReceive().AddAsync(Arg.Any<Firm>());
+        await users.DidNotReceive().AddAsync(Arg.Any<User>());
+        await uow.DidNotReceive().SaveChangesAsync();
     }
 }
