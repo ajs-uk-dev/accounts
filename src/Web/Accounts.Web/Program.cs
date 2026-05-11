@@ -13,6 +13,7 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 
 SerilogConfig.Configure(builder);
+OpenTelemetryConfig.AddTracing(builder);
 
 builder.Services.AddPracticeOperations(builder.Configuration);
 
