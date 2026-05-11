@@ -25,7 +25,8 @@ public class RegisterFirmHandlerTests
         users.GetByEmailAcrossFirmsAsync("alice@example.com").Returns((User?)null);
         hasher.Hash("super-secret-password").Returns("$hash$");
 
-        var handler = new RegisterFirmHandler(firms, users, hasher, uow, clock);
+        var audit = Substitute.For<IAuditWriter>();
+        var handler = new RegisterFirmHandler(firms, users, hasher, uow, clock, audit);
         var result = await handler.Handle(
             new RegisterFirmCommand("Acme & Co", "acme", "alice@example.com", "super-secret-password"),
             CancellationToken.None);
@@ -47,7 +48,7 @@ public class RegisterFirmHandlerTests
         var handler = new RegisterFirmHandler(
             firms, users,
             Substitute.For<IPasswordHasher>(), uow,
-            Substitute.For<IClock>());
+            Substitute.For<IClock>(), Substitute.For<IAuditWriter>());
 
         var act = () => handler.Handle(
             new RegisterFirmCommand("Acme", "acme", "x@y.com", "long-enough-pwd"),
@@ -77,7 +78,8 @@ public class RegisterFirmHandlerTests
         users.GetByEmailAcrossFirmsAsync("alice@example.com").Returns(existingUser);
 
         var handler = new RegisterFirmHandler(
-            firms, users, Substitute.For<IPasswordHasher>(), uow, Substitute.For<IClock>());
+            firms, users, Substitute.For<IPasswordHasher>(), uow,
+            Substitute.For<IClock>(), Substitute.For<IAuditWriter>());
 
         var act = () => handler.Handle(
             new RegisterFirmCommand("Acme", "acme", "alice@example.com", "long-enough-pwd"),

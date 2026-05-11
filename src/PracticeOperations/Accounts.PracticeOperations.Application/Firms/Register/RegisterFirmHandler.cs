@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Accounts.PracticeOperations.Application.Abstractions;
+using Accounts.PracticeOperations.Domain.Audit;
 using Accounts.PracticeOperations.Domain.Firms;
 using Accounts.PracticeOperations.Domain.Users;
 using Accounts.SharedKernel.Exceptions;
@@ -14,12 +16,15 @@ public sealed class RegisterFirmHandler : IRequestHandler<RegisterFirmCommand, R
     private readonly IPasswordHasher _hasher;
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
+    private readonly IAuditWriter _audit;
 
     public RegisterFirmHandler(
         IFirmRepository firms, IUserRepository users,
-        IPasswordHasher hasher, IUnitOfWork uow, IClock clock)
+        IPasswordHasher hasher, IUnitOfWork uow, IClock clock,
+        IAuditWriter audit)
     {
         _firms = firms; _users = users; _hasher = hasher; _uow = uow; _clock = clock;
+        _audit = audit;
     }
 
     public async Task<RegisterFirmResult> Handle(RegisterFirmCommand cmd, CancellationToken cancellationToken)
@@ -43,6 +48,19 @@ public sealed class RegisterFirmHandler : IRequestHandler<RegisterFirmCommand, R
         await _firms.AddAsync(firm, cancellationToken);
         await _users.AddAsync(owner, cancellationToken);
         await _uow.SaveChangesAsync(cancellationToken);
+
+        // Audit after the unit-of-work commits so the firm/owner IDs are stable.
+        await _audit.WriteExplicitAsync(
+            AuditAction.FirmRegistered,
+            firmId: firm.Id,
+            actorUserId: owner.Id,
+            subject: null,
+            metadata: new Dictionary<string, string>
+            {
+                ["FirmName"] = firm.Name,
+                ["FirmSlug"] = firm.Slug,
+            },
+            cancellationToken);
 
         return new RegisterFirmResult(firm.Id.Value, owner.Id.Value);
     }

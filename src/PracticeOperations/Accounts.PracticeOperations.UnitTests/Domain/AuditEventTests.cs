@@ -21,7 +21,7 @@ public class AuditEventTests
             occurredAt: now);
 
         e.Id.Should().NotBe(Guid.Empty);
-        e.FirmId.Should().Be(firm);
+        e.FirmId.Should().Be(firm); // Record overload always sets FirmId
         e.ActorUserId.Should().Be(user);
         e.Action.Should().Be(AuditAction.UserSignedIn);
         e.EntityType.Should().Be("User");
