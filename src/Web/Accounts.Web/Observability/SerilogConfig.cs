@@ -1,6 +1,7 @@
 using System.Globalization;
 using Accounts.PracticeOperations.Application.Abstractions;
 using Serilog;
+using Serilog.AspNetCore;
 using Serilog.Context;
 using Serilog.Events;
 
@@ -30,10 +31,27 @@ public static class SerilogConfig
         app.Use(async (ctx, next) =>
         {
             var firmCtx = ctx.RequestServices.GetService<IFirmContext>();
-            using (LogContext.PushProperty("FirmId", firmCtx?.FirmId?.Value ?? Guid.Empty))
-            using (LogContext.PushProperty("UserId", firmCtx?.UserId?.Value ?? Guid.Empty))
-            using (LogContext.PushProperty("CorrelationId", ctx.TraceIdentifier))
+            var firmId = firmCtx?.FirmId?.Value ?? Guid.Empty;
+            var userId = firmCtx?.UserId?.Value ?? Guid.Empty;
+            var correlationId = ctx.TraceIdentifier;
+
+            // Push to LogContext for all log events emitted from within this request.
+            using (LogContext.PushProperty("FirmId", firmId))
+            using (LogContext.PushProperty("UserId", userId))
+            using (LogContext.PushProperty("CorrelationId", correlationId))
             {
+                // Also set on IDiagnosticContext so the Serilog request-completion event
+                // (emitted by UseSerilogRequestLogging after the inner middleware unwinds)
+                // captures FirmId, UserId and CorrelationId even though LogContext using-blocks
+                // have been disposed by the time that emit fires.
+                var diagCtx = ctx.RequestServices.GetService<IDiagnosticContext>();
+                if (diagCtx is not null)
+                {
+                    diagCtx.Set("FirmId", firmId);
+                    diagCtx.Set("UserId", userId);
+                    diagCtx.Set("CorrelationId", correlationId);
+                }
+
                 await next();
             }
         });

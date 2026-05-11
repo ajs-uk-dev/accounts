@@ -61,10 +61,10 @@ builder.Services.AddAuthorization(opts =>
 
 var app = builder.Build();
 
-app.UseAuthentication();
-app.UseAuthorization();
 app.UseMiddleware<Accounts.Web.Middleware.CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseTenantLogContext();
 
 app.MapHealthChecks("/health");
