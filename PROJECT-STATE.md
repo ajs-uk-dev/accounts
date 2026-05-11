@@ -1,7 +1,233 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
-**Last working session:** 2026-05-11
-**Status:** DDD stance resolved. Writing the Foundation sub-plan.
+**Last working session:** 2026-05-11 (extended; final review + GitHub setup + PR opened)
+**Status:** **Sub-plan 1a (Foundation Core) shipped — PR #1 open** at https://github.com/ajs-uk-dev/accounts/pull/1. 40 plan tasks + 8 review-driven fix commits on `feature/foundation-core` (62-commit PR diff against `main` which is at the bootstrap commit `536471e`). End-state: register/sign-in/MFA/JWT/role-gated endpoints + structured logging (with request-summary enrichment via IDiagnosticContext) + OTel tracing + correlation-ID + full audit coverage of FirmRegistered/UserSignedIn/UserSignInFailed + React UI + Docker images + GitHub Actions workflows + Playwright e2e. Backend: 69 tests passing locally. **Awaiting first CI run on the PR + your merge decision.** Then Sub-plan 1b (Foundation Extended).
+
+## Tasks completed (commits on `feature/foundation-core`, in order)
+
+| # | Commit | Description |
+|---|---|---|
+| 1 | `536471e` | Repo bootstrap — solution, .gitignore, .editorconfig, central package management, README |
+| 2 | `a7fb188` | 8 csproj scaffold with Clean Architecture references |
+| 3 | `901150c` | docker-compose.yml (postgres + seq running locally) |
+| – | `d9300d6` | Plan-fix: Seq `SEQ_FIRSTRUN_NOAUTHENTICATION` requirement recorded |
+| 4 | `52acf3e` | SharedKernel: FirmId, UserId, Entity/AggregateRoot/ValueObject, Clock, Result + 6 tests |
+| 5 | `0f2faee` | PracticeOperations DbContext skeleton + DI registration |
+| 6 | `b9db07c` | Web composition root + /health endpoint (DB-check) |
+| 7 | `1b158a6` | Integration test infra: PostgresFixture, ApiFactory, HealthCheckTests |
+| 8 | `48a8aa4` | Initial empty EF migration (later regenerated in Task 19) |
+| 9 | `8530c41` | IFirmContext abstraction + HttpContext-backed accessor in Web |
+| 10 | `ed9b1fe` | DbContext applies ITenantScopedEntity global query filter |
+| 11 | `03dd4cc` | Cross-tenant isolation integration test via TenantTestRow |
+| – | `5731cbd` | docs(state): pause after Task 10 record |
+| 12 | `82366cb` | AuditEvent entity + EF configuration + migration |
+| 13 | `e72c89b` | IAuditWriter + EfAuditWriter; append-only in SaveChanges; FrameworkReference Microsoft.AspNetCore.App |
+| 13a | `6618439` | Fix(audit): guard moved to 2-arg SaveChanges leaf overloads; dead CPM pins dropped |
+| 14 | `3113cfa` | MediatR AuditingBehavior pipeline |
+| 15 | `fd7862a` | EmailAddress value object with validation + normalization |
+| 16 | `2c1bf91` | Role, UserStatus, FirmStatus enums |
+| 17 | `1450c73` | Firm aggregate with Register/Activate + FirmRegistered event |
+| 18 | `7fd14bc` | User aggregate with Register/Activate/EnrollTotp + RecordSuccessful/FailedSignIn + UserRegistered event |
+| 19 | `0d87bed` | EF mappings for Firm + User; snake_case via EFCore.NamingConventions 10.0.1; consolidated Initial migration; ApiFactory test-fixture bug fixed |
+| – | `1b233c8` | docs(state): pause after Task 19 record |
+| 19a | `2a23de8` | Task 19 review fixes: Email converter NRE → explicit throw, lambda-form HasIndex, ApiFactory unused-using drop, Firm/User persistence smoke tests (5 new tests) |
+| 20 | `03051d2` | Repository abstractions + EF implementations (IFirmRepository, IUserRepository, IUnitOfWork) |
+| 21 | `30392ad` | IPasswordHasher + Pbkdf2 (via FrameworkReference, no NuGet add) + smoke test |
+| 21a | `4313cb3` | Fix(cpm): unify EF Core Relational at 10.0.7 across solution via `CentralPackageTransitivePinningEnabled` + explicit `PackageVersion` pin (resolves MSB3277 surfaced by Task 21's new UnitTests→Infrastructure reference) |
+| 22 | `9a04de3` | RegisterFirm command/handler/validator + ValidationBehavior MediatR pipeline; validation registered before auditing |
+| 22a | `891a461` | Task 22 review fixes: validator regex unified with EmailAddress.RegexPattern const; email-taken test added; DI pipeline-ordering comment |
+| 23 | `001cf52` | POST /api/firms/register endpoint; introduces **ConflictException** in SharedKernel; converts duplicate-slug/email throws to typed ConflictException; **fixes latent EfUserRepository LINQ-translation bug** (`u.Email.Value == lower` unconverted; now constructs EmailAddress and uses value-converter equality) |
+| 24 | `d1501cf` | ITotpService + Otp.NET implementation (KeyGeneration.GenerateRandomKey, Base32, Totp w/ VerificationWindow ±1) + 3 unit tests |
+| 25 | `f716fa5` | EnrollTotpCommand + handler + /api/auth/enroll-totp endpoint (IFirmContext-guarded, RequireAuthorization) + 2 unit tests |
+| 26 | `ac33b07` | IJwtIssuer + JwtIssuer (HMAC-SHA256, 60-min lifetime, claims: sub/firm_id/Role); JwtBearer scheme wired in Web/Program.cs; appsettings.json holds empty placeholders; dev Jwt config in appsettings.Development.json; ApiFactory injects test Jwt config via UseSetting (auth scheme inits eagerly); JwtBearer NuGet was needed (not in implicit FrameworkReference); 3 unit tests |
+| 27 | `6afcd59` | SignInCommand + handler + /api/auth/sign-in endpoint with TOTP step-up; auto-Activate on first sign-in (MFA grace); IAuditWriter ctor inject omitted (deferred to Task 28-29); 2 integration tests |
+| – | `31230cd` | docs(state): checkpoint after Task 27 |
+| 28 | `a1f320e` | Authorization policies (RequireFirmOwner / RequirePartnerOrAbove / RequireManagerOrAbove / RequireStaff) + /api/admin/me (RequireStaff) + /api/admin/owner-only (RequireFirmOwner); AdminEndpointsPartial stub removed; 2 integration tests proving full bearer → role-claim → policy chain |
+| – | `9852422` | docs(state): record Task 28; authz foundation complete |
+| 29 | `dd20dff` | Serilog: SerilogConfig.Configure + UseTenantLogContext extension; UseSerilogRequestLogging + per-request LogContext push of FirmId/UserId/CorrelationId; Seq sink |
+| 30 | `4e02398` | OpenTelemetry tracing: AspNetCore/HttpClient/EFCore instrumentation + OTLP exporter; ConsoleExporter fallback omitted in this commit (fixed in 30a) |
+| 30a | `2929364` | Fix(otel): bump OTel suite 1.10.x → 1.15.x to clear 3 CVE audits (NU1903); remove the audit suppressions added in 30; restore ConsoleExporter fallback; absorb `SetDbStatementForText` breaking removal (DB statement capture is now always-on in 1.13+) |
+| 31 | `6da1c57` | CorrelationIdMiddleware: read/echo `X-Correlation-ID` header; sets `HttpContext.TraceIdentifier`; runs before `UseSerilogRequestLogging` so logged request entries carry the real correlation ID; 2 integration tests (round-trip + generated-when-absent) |
+| – | `55dee37` | docs(state): checkpoint after Task 31; Phase 9 complete |
+| 32 | `6eeedc3` | Vite + React 19 + TS scaffold at `client/accounts-web/`; Tailwind v3 pinned (v4 changed config model); `@/* → src/*` path alias; vitest configured (no tests yet); npm build green |
+| 33 | `25fb8ff` | API client (`src/lib/api.ts` — axios + typed `firms.register`, `auth.signIn/enrollTotp/me`) + AuthProvider/useAuth (`src/lib/auth.tsx` — sessionStorage-persisted bearer token, expiry-aware) |
+| 34 | `2b19140` | Routes constants + ProtectedRoute (redirects unauth → `/sign-in`) + TopNav (auth-aware) + App.tsx route tree + main.tsx with BrowserRouter / QueryClientProvider / AuthProvider |
+| 35 | `d767300` | Register / SignIn / EnrollTotp / Dashboard pages — full register → sign-in (with TOTP step-up) → dashboard (`/api/admin/me` via @tanstack/react-query) flow; `err: unknown` with type narrowing (improvement over plan's `any`) |
+| – | `6c9e5b3` | docs(state): checkpoint after Task 35; Phase 10 complete |
+| 36 | `6a1c792` | API Dockerfile (multi-stage sdk:10.0 → aspnet:10.0, $APP_UID, port 8080) + `.dockerignore` at repo root |
+| 36-fix | `ef8febe` | Dockerfile fix: `COPY .editorconfig ./` so the in-container build picks up the migration-folder CA1861 suppression; revert pragma additions in auto-generated migration |
+| 37 | `4aa8064` | Frontend Dockerfile (node:22-alpine build → nginx:alpine runtime) + nginx.conf with SPA `try_files` + `/api/` reverse proxy to `accounts-api:8080`; removed `client/` from `.dockerignore` so frontend build sees its source |
+| 38 | `85fd99e` | Backend CI workflow (`.github/workflows/backend.yml`) — restore/build/test on push and PR; upload trx artifacts |
+| 39 | `dc31482` | Frontend CI workflow + ESLint setup (eslint.config.js flat, 5 deps: eslint, @eslint/js, typescript-eslint, eslint-plugin-react-hooks, eslint-plugin-react-refresh); `test` script uses `--passWithNoTests` |
+| 40 | `6029708` | Playwright e2e (register→signin→dashboard happy path) + chromium browser install + `.github/workflows/e2e.yml` with postgres service container, dotnet-ef migration step, `ASPNETCORE_ENVIRONMENT=Development` to surface dev appsettings (working JWT secret + DB conn string), `serve` for the SPA, playwright report artifact upload |
+
+## Post-final-review polish (review-driven, after Task 40)
+
+A final cross-cutting reviewer surfaced 3 Critical + 1 Minor + 2 audit-coverage findings. All addressed in two batches (Batch 1 = 3 Criticals; Batch 2 = Minor #15 + audit coverage; + 1 follow-up test). 13 new tests added (56 → 69). Importants captured below as trackers.
+
+| # | Commit | Description |
+|---|---|---|
+| FR-1 | `267632d` | fix(auth): fail-fast on empty or short `Jwt:Issuer/Audience/Secret` at startup; was previously a latent Production-boot footgun (`JwtIssuer` only null-guarded; empty strings passed through to `SymmetricSecurityKey("")`) — 4 new tests |
+| FR-2 | `b7e8363` | fix(persistence): `IUserRepository.GetAsync(UserId)` no longer `IgnoreQueryFilters()` — the API reads as tenant-safe and now is. `GetByEmailAcrossFirmsAsync` keeps its opt-in filter bypass; no new `GetAcrossFirmsAsync` variant introduced. 2 new tests |
+| FR-3 | `2c1dbbe` | fix(observability): reorder middleware to `CorrelationId → SerilogRequestLogging → Auth → Authz → TenantLogContext`. **Plus added `IDiagnosticContext.Set()` calls in `UseTenantLogContext`** — `LogContext.PushProperty` uses `AsyncLocal` and pops on dispose BEFORE `RequestLoggingMiddleware` emits its summary; `IDiagnosticContext` is the Serilog.AspNetCore-native mechanism for adding properties to the request-completion event. Dual-push (LogContext + DiagnosticContext) is required: LogContext for in-request handler logs, DiagnosticContext for the request-summary line. 2 new tests |
+| FR-4 | `891ca5a` | refactor(persistence): relocate `TenantTestRow` out of production `Domain/_Test/` — it was a test fixture that had been creating a real `tenant_test_rows` table in every production database via the `Initial` migration. New `DropTenantTestRowFromProductionSchema` migration. Test-side `TestModelCustomizer : RelationalModelCustomizer` (registered via `services.Replace<IModelCustomizer>` in `ApiFactory`) re-registers the entity in the test model; `ApiFactory` recreates the table via raw `CREATE TABLE IF NOT EXISTS` after migrations run. Required adding `InternalsVisibleTo` on Infrastructure to expose `PracticeOperationsDbContext.CurrentFirmId` to the customizer for filter replication |
+| FR-5 | `0745dda` | feat(audit): `IAuditWriter.WriteExplicitAsync(FirmId?, UserId?, subject, metadata, ct)` overload for pre-auth-context events. `AuditEventAllowsNullFirmAndSubject` migration makes `firm_id` nullable and adds `subject varchar(320)`. **`AuditEvent` no longer implements `ITenantScopedEntity`** — incompatible with nullable FirmId; provenance enforced at the `AuditEvent.RecordExplicit` domain factory (throws if both `firmId` AND `subject` are null). All audit read sites verified explicit-firm-filtered; `AuditLogTests` updated to filter by FirmId. Original context-pulling `RecordAsync` overload retained for normal flows |
+| FR-6 | `e74ce8f` | feat(audit): audit `FirmRegistered` from `RegisterFirmHandler` (anonymous-flow → handler-direct call rather than `IAuditedCommand`). Audit row carries new firm's ID, owner's ID, and `{FirmName, FirmSlug}` metadata. Trade-off: audit write is in a separate save call after the registration UoW commits — favoring availability over compliance completeness; tracked as #22 below |
+| FR-7 | `7871af0` | feat(audit): audit `UserSignedIn` success + `UserSignInFailed` for all 3 failure modes (UserNotFound with `firm_id=null, actor_user_id=null, subject=attemptedEmail, Reason=UserNotFound`; BadPassword with `subject=email, Reason=BadPassword`; BadTotp similar). Two integration tests (success + UserNotFound + BadPassword) |
+| FR-8 | `649f9de` | test(audit): BadTotp integration test (registers firm, signs in, enrolls TOTP via `/api/auth/enroll-totp`, attempts sign-in with TOTP code `000000`, asserts `UserSignInFailed`/`Reason=BadTotp` audit row) |
+
+## Auth surface now complete
+
+- `POST /api/firms/register` — creates Firm + owner User (`PendingVerification` status)
+- `POST /api/auth/sign-in` — validates password (+ TOTP if enrolled), auto-Activates first sign-in, issues 60-min JWT bearer; 401 on bad creds/TOTP; supports two-step flow (`TotpRequired: true` if user is enrolled but no code provided)
+- `POST /api/auth/enroll-totp` — `RequireAuthorization()`; generates 20-byte Base32 secret + otpauth:// URI for QR; updates user state via `User.EnrollTotp`
+- All staff-side endpoints will gate via `RequireAuthorization()` + per-policy `RequireRole(...)` in Task 28
+
+## Plan deviations to be aware of (already documented inline)
+
+- Task 2: test-tool package versions bumped to SDK-template baseline; `coverlet.collector` 6.0.4 added
+- Task 3: `SEQ_FIRSTRUN_NOAUTHENTICATION: "true"` required for Seq 2025.2+ local dev
+- Task 4: `CA1000` suppressed in-file on `Result<T>`; `CA1707` suppressed in test csprojs
+- Task 5: `System.Security.Cryptography.Xml 10.0.7` pinned (removed in Task 13 when FrameworkReference superseded)
+- Task 6: 5th package for `AddDbContextCheck<T>`; EF Core bumped to 10.0.7
+- Task 7: `CA1711` suppression for xunit collection-definition marker types
+- Task 10: filter rewritten from `e.FirmId.Value == CurrentFirmIdRaw` (Npgsql-untranslatable) to `e.FirmId == CurrentFirmId.Value`
+- Task 11/12: CA1861 hoist in scaffolded migrations (recurring; resolved globally in Task 19 via .editorconfig)
+- Task 13: AuditAction.Unknown rejection; FrameworkReference Microsoft.AspNetCore.App; 3 PackageReferences pruned (NU1510); guard moved to 2-arg SaveChanges leaf overloads (commit `6618439`)
+- Task 14: CA1725 rename `ct` → `cancellationToken` (recurring — applied to every MediatR handler since)
+- Task 17: en-dash in error message replaced with ASCII hyphen
+- Task 19 (largest deviation): adopted snake_case naming convention project-wide; regenerated all migrations as one consolidated `Initial`; added `.editorconfig` glob suppression for CA1861 in Migrations folder; **fixed latent ApiFactory bug** where tests had been hitting the dev DB rather than the Testcontainer (switched to `UseSetting`); moved dev connection string to `appsettings.Development.json`
+- Task 19a: EmailAddress converter null-forgiveness replaced with explicit throw; lambda-form `HasIndex` for composite unique; persistence smoke tests added for both Firm and User aggregates
+- Task 21: FrameworkReference path worked — `PasswordHasher<TUser>` available without explicit NuGet add (`Microsoft.Extensions.Identity.Core` is in the AspNetCore shared framework)
+- Task 21a: `CentralPackageTransitivePinningEnabled=true` + explicit `Microsoft.EntityFrameworkCore.Relational` pin in Directory.Packages.props (only `10.0.0` and `10.0.1` exist on NuGet for EFCore.NamingConventions — no 10.0.7 to bump to; force unification at the transitive pin instead)
+- Task 22: `EmailAddress.RegexPattern` const introduced so validator and value object stay in lockstep automatically
+- Task 23 (largest deviation since 19): introduced `ConflictException` in SharedKernel and converted RegisterFirmHandler duplicate-resource throws (left the EmailAddress.Create defensive throw as InvalidOperationException — that path is now unreachable since validator catches first); endpoint catches typed exception; **also fixed latent EfUserRepository LINQ-translation bug** that had zero test coverage prior
+- Task 24: smoke tests added beyond plan (3 — covers GenerateSecret base32 validity, BuildOtpAuthUri encoding, Verify round-trip with real Totp.ComputeTotp)
+- Task 25: unit tests added beyond plan (2 — enroll happy path + user-not-found 400); FluentValidation `using` dropped from AuthEndpoints.cs (unused → CS8019)
+- Task 26: JwtBearer **NuGet package WAS required** in Accounts.Web.csproj (NOT in the implicit framework reference from `Microsoft.NET.Sdk.Web`); dev Jwt config split to appsettings.Development.json, prod-defaults appsettings.json has empty placeholders; ApiFactory `UseSetting` for Jwt config too (auth scheme inits eagerly on first request, otherwise IDX10703); CA1305 InvariantCulture on int.Parse, CA1062 ArgumentNullException.ThrowIfNull added defensively; 3 unit tests
+- Task 27: `IAuditWriter` ctor inject OMITTED (plan had it as a reserved-for-future field, would have tripped IDE0052/CA1823); SignInValidator uses lenient default `.EmailAddress()` deliberately (not strict regex — sign-in failure UX should be same 401 whether email format-bad or just wrong)
+- Task 29: SerilogConfig requires `using System.Globalization;` + `CultureInfo.InvariantCulture` on both `WriteTo.Console` and `WriteTo.Seq` to satisfy CA1305; `using Serilog;` added to `Program.cs` for `UseSerilogRequestLogging` extension resolution
+- Task 30 (significant): plan-pinned OTel 1.10.x packages carried 3 NU1903 CVE audits. Initial impl suppressed via `NuGetAuditSuppress` in `Directory.Build.props` (commit `4e02398`); fix commit `2929364` bumped the suite to 1.15.x (Hosting/OTLP/Console 1.15.3, AspNetCore 1.15.2, Http 1.15.1, EFCore 1.15.1-beta.1) and removed all 3 suppressions. **Breaking-change absorbed:** `AddEntityFrameworkCoreInstrumentation` lost the `SetDbStatementForText` option in 1.13.0-beta.1 — DB statement capture is now always-on (note this for Sub-plan 8 PII review). `OpenTelemetry.Exporter.Console 1.15.3` package was added to enable the ConsoleExporter fallback when no OTLP endpoint configured
+- Task 31: middleware param renamed `ctx` → `context` to pre-empt CA1725; integration tests added beyond plan (2 — explicit-header round-trip + generated-when-absent)
+- Task 32: `npm create vite@latest accounts-web -- --template react-ts` no longer works as written — create-vite v9 changed positional-arg semantics. Implementer scaffolded manually (vanilla TS template + manual React install). End state is equivalent because Task 34 overwrites the scaffolded `main.tsx`/`App.tsx` anyway. TypeScript 6 deprecated standalone `baseUrl` — `"ignoreDeprecations": "6.0"` shim added to keep the plan's `@/*` path alias. Tailwind v3 pinned at `^3.4.19` (v4 dropped the CLI `init -p` and changed config approach) — the plan's `tailwind.config.ts` and `@tailwind` directives are v3 syntax
+- Task 33: type-only imports split out (`import type { AxiosInstance } from 'axios';`, `import type { ReactNode } from 'react';`) for `isolatedModules`/TS 6 compatibility
+- Tasks 34 + 35: combined into one dispatch (App.tsx in Task 34 imports pages from Task 35, so a Task-34-only commit wouldn't build); two atomic commits preserved per the plan's commit messages. `err: unknown` with type narrowing chosen over plan's `err: any` (stricter, no ESLint friction); `React.FormEvent` used directly (verbatimModuleSyntax is off)
+- Task 36: Docker build initially failed because `.editorconfig` wasn't copied into the build context — the migration-folder CA1861 suppression added in Task 19 was therefore invisible inside the container. Fix commit `ef8febe`: `COPY .editorconfig ./` in the build stage (also benefits any future shared analyzer config). Reverted the implementer's pragma workaround in the auto-generated migration file
+- Task 37: `client/` was listed in `.dockerignore` from Task 36 (it had no reason to be in the API build context). For the frontend image build the line is removed entirely — root context has to include `client/accounts-web/`. `**/node_modules/` and `**/dist/` globs still keep the heavy directories out
+- Task 39: Task 32's manual scaffolding (create-vite v9 quirk) meant no `eslint.config.js` shipped — created a minimal flat config with React-hooks + react-refresh + typescript-eslint, installed 5 ESLint deps. `test` script set to `vitest --passWithNoTests` so CI doesn't fail on the empty-suite frontend (frontend tests deferred). Single pre-existing lint warning on `useAuth` (`react-refresh/only-export-components`) is correct architecture (context + hook co-located)
+- Task 40 (final task): two important deviations to make CI actually green:
+  1. The plan's `e2e.yml` workflow didn't account for `appsettings.json` having empty production values (placeholders for Sub-plan 1b user-secrets work). Added `ASPNETCORE_ENVIRONMENT: Development` env to the API steps so the dev appsettings (which has matching CI postgres creds + working JWT secret) is loaded
+  2. The plan had no migration step — `Program.cs` doesn't auto-migrate. Added a `Apply migrations` step (`dotnet tool install dotnet-ef` + `dotnet ef database update`) before "Start API"
+  Also added `'e2e'` to `eslint.config.js` ignores and `exclude: [..., 'e2e/**']` to vitest config in `vite.config.ts` so the two test runners don't fight
+
+## Open follow-up tasks (tracker IDs)
+
+Pre-existing trackers carried forward:
+- **#14:** Add test data cleanup to tenant integration tests (Respawn / `ExecuteDeleteAsync IgnoreQueryFilters` / transaction rollback). Now MORE pressing — 24 integration tests creating Firm+User combinations.
+- **#17:** Add `(firm_id, actor_user_id, occurred_at)` audit index + AuditAction XML doc.
+- **#19:** Document persistence conventions (snake_case adoption, no manual HasColumnName, schema name, migration history table, consolidated-migration rationale) — `docs/conventions/persistence.md` or README section.
+- **#20:** Move dev DB password AND JWT secret to `dotnet user-secrets`.
+
+New trackers from final cross-cutting review (Sub-plan 1b candidates unless flagged otherwise):
+
+Security-track:
+- **#22:** Audit write should be in same transaction as state change (currently `RegisterFirmHandler` and `SignInHandler` write audit via a separate `SaveChangesAsync` after the main UoW commits — if the audit save fails, the registration/sign-in still succeeds with no audit trail). Compliance-vs-availability trade-off; either restructure to a single transaction boundary or add an outbox/retry pattern. Decision deferred.
+- **#23:** Authorization policy negative-path coverage tests — 5 staff roles × 4 policies admit/reject matrix. Today only `RequireFirmOwner` is exercised; `RequirePartnerOrAbove` and `RequireManagerOrAbove` are unused and untested.
+- **#24:** Real-entity tenant-isolation integration test using `User`/`AuditEvent` (current `TenantIsolationTests` only covers the synthetic `TenantTestRow`).
+- **#25:** Explicit CORS policy — currently no `AddCors`/`UseCors`; deployment topology assumes single-origin reverse proxy but it's undocumented.
+- **#26:** Rate limiting on `/api/auth/sign-in` and `/api/firms/register` via `AddRateLimiter` (token-bucket per remote IP + per email).
+- **#27:** Bump `PasswordHasherOptions.IterationCount` to 600,000 (OWASP 2023 guidance for SHA-256; currently using `PasswordHasher<TUser>` default of 100k).
+- **#28:** Encrypt `users.totp_secret` at column level (DataProtection-backed value converter or pgcrypto). Currently stored as plaintext Base32.
+- **#34:** Frontend JWT in `sessionStorage` — standard XSS exposure. Acceptable for MVP; revisit when AI-native features start dynamically rendering content.
+
+CI/CD-track:
+- **#29:** Harden `e2e.yml` API readiness probe — currently `dotnet run &` + `wait-on /health`; a crashed API manifests as a Playwright timeout. Convert to docker-compose service with healthcheck, or wrap in a real process supervisor.
+- **#30:** Add explanatory comment to `backend.yml` that integration tests depend on Docker (Testcontainers) being present on the runner — currently implicit via `ubuntu-latest`.
+
+Correctness/docs-track:
+- **#31:** `SignInValidator.cs` uses `.EmailAddress()` (lax) while `RegisterFirmValidator` uses the strict `EmailAddress.RegexPattern` const — add a one-line comment on the validator explaining why (sign-in UX wants the same 401 regardless of email format).
+- **#32:** `JwtIssuer` constructor should validate `Jwt:LifetimeMinutes > 0` (currently a misconfigured negative value would produce already-expired tokens).
+- **#33:** README update for end-state surface (auth surface, four bounded contexts, Docker invocation, CI workflow expectations).
+- **#35:** `AuditEventConfiguration` write-side `v!.Value.Value` for nullable `ActorUserId` is misleading (EF doesn't call write-converters for nulls so no runtime NRE risk, but the null-forgiving operator confuses readers). Replace with `v?.Value.Value` or explicit ternary.
+- **#36:** Add unit test for `AuditEvent.RecordExplicit` both-null guard (asserts throw when `firmId` AND `subject` are both null).
+
+Closed during this run: #15 (CA1861 .editorconfig — Task 19), #16 (column naming — Task 19), #18 (Task 19 reviews — Task 19a), #21 (ConflictException — Task 23). The final-review #1/#2/#3 Criticals + Minor #15 + audit coverage (FR-1 through FR-8 above) were all fixed inline rather than tracked.
+
+## Execution metrics — final
+
+Plan execution: ~45 implementer + ~16 reviewer + 5 inline-fix dispatches = ~66 subagent dispatches across 40 tasks. Average ~1.65 subagents per task. Tasks 8, 10, 15, 16, 17, 18, 20, 21, 24-40 skipped formal review pairs (verbatim/small/well-tested). Tasks 11, 12, 13, 14, 19, 22, 23, 30, 36 generated fix commits via review-or-controller concern surfacing. Phases 9-12 ran almost entirely on the first dispatch attempt.
+
+Post-review polish: 1 final-reviewer + 2 implementer batches + 2 batch reviewers + 1 follow-on fix = 6 dispatches across 8 fix commits.
+
+## Current state — Foundation Core complete + reviewed + polished
+
+- Branch: `feature/foundation-core`
+- Last commit: `649f9de` (FR-8 — BadTotp audit integration test)
+- Tasks complete: **40 of 40 (100%)** + 8 review-driven fix commits
+- Working tree: about to commit final state-doc update; otherwise clean
+- Docker: postgres + seq running locally; both `accounts-api:dev` and `accounts-web:dev` images built clean
+- Backend build: 0 warnings, 0 errors; **69 backend tests passing** (6 SharedKernel + 32 UnitTests + 31 IntegrationTests)
+- Frontend build: `npm run build` green (314 kB JS / 6 kB CSS gzipped); `npm run lint` clean (1 architectural warning); `npm run test` 0 (no vitest tests yet — deferred)
+- Playwright: 1 e2e test (`signin.spec.ts`) listed cleanly; chromium browser installed locally; full e2e execution happens in CI
+- CI workflows present: `backend.yml`, `frontend.yml`, `e2e.yml` (await first push to validate; not yet executed)
+- Vulnerability scan: clean (0 NU1903/NU1904 audits)
+- Migrations: 3 total — `Initial` (consolidated), `DropTenantTestRowFromProductionSchema`, `AuditEventAllowsNullFirmAndSubject`
+- Dev DB note: still contains stale PascalCase-era migration rows from before Task 19 regeneration (Sub-plan 1b housekeeping)
+
+## End-state surface
+
+Backend endpoints (all working with full auth/audit/log/trace pipeline):
+- `GET /health` — DB health check
+- `GET /` — basic identification
+- `POST /api/firms/register` — register Firm + owner User
+- `POST /api/auth/sign-in` — credentials + TOTP step-up; issues JWT (60 min)
+- `POST /api/auth/enroll-totp` — authenticated; returns Base32 secret + otpauth URI
+- `GET /api/admin/me` — RequireStaff policy
+- `GET /api/admin/owner-only` — RequireFirmOwner policy
+
+Frontend pages (all wired):
+- `/register`, `/sign-in` (with TOTP step-up branch), `/enroll-totp` (protected), `/dashboard` (protected, shows `/api/admin/me`)
+
+Cross-cutting:
+- Multi-tenancy via `FirmId` strongly-typed identifier + global EF query filter on `ITenantScopedEntity`
+- Append-only audit log via SaveChanges override
+- Serilog structured logs with `Application`/`FirmId`/`UserId`/`CorrelationId` enrichers, Console + Seq sinks
+- OpenTelemetry tracing (AspNetCore + HttpClient + EF Core) + OTLP/Console exporter
+- `X-Correlation-ID` header round-trip middleware
+- 4 authorization policies (RequireFirmOwner / RequirePartnerOrAbove / RequireManagerOrAbove / RequireStaff)
+- PostgreSQL + EF Core with snake_case naming convention
+- CPM with transitive pinning; 0 CVE audits
+
+## To resume next session
+
+1. Read this file.
+2. Check the PR: https://github.com/ajs-uk-dev/accounts/pull/1
+   - If CI is green and you've merged → proceed to step 5
+   - If CI is red → fix locally on `feature/foundation-core`, commit, push (the PR auto-updates). Most likely friction: `e2e.yml` API readiness probe (tracker #29) or Testcontainers Docker availability on the runner (tracker #30)
+   - If unmerged → review the 62-commit diff and merge when ready (suggested strategy: merge-commit to preserve the per-task forensic trail; squash if you want one tidy commit)
+3. **After PR merge:** pull main locally (`git checkout main && git pull`), optionally delete `feature/foundation-core` both locally and on the remote.
+4. **GitHub state to be aware of:**
+   - Remote `origin` = https://github.com/ajs-uk-dev/accounts.git (public)
+   - Remote `main` was force-pushed once during PR setup (from auto-init `411976c` to our bootstrap `536471e`) — fine going forward
+   - Default branch is `main`
+   - 3 CI workflows triggered on push/pull_request: `backend.yml`, `frontend.yml`, `e2e.yml`
+5. **Then start Sub-plan 1b (Foundation Extended).** Recommended opening move: use `superpowers:brainstorming` to scope which of the 17 trackers + the planned 1b features (M365/Google SSO, integration-framework skeleton, retention framework) belong in one plan vs split. Trackers ranked by my read of urgency:
+   - **Urgent before 1b ships:** #14 (test data cleanup — every integration test currently bleeds state), #20 (user-secrets), #26 (rate-limiting on auth endpoints), #28 (encrypt TOTP secret at rest)
+   - **Should land during 1b:** #22 (audit transaction boundary), #23 (authz policy negative-path matrix), #24 (real-entity isolation test), #25 (CORS), #27 (PBKDF2 to 600k), #29 (e2e readiness), #34 (frontend XSS posture)
+   - **Doc/nit, defer to convenience:** #17, #19, #30, #31, #32, #33, #35, #36
+6. **Sub-plan 1b's scope per the original decomposition:** M365 + Google SSO, integration-framework skeleton, data-class tagging + retention framework. The trackers above slot in alongside.
+
+## PR-specific state (current open work)
+
+- **PR:** #1 — https://github.com/ajs-uk-dev/accounts/pull/1
+- **Title:** Foundation Core — sub-plan 1a (40 plan tasks + 8 review-driven fixes)
+- **Base:** `main` (at `536471e`)
+- **Head:** `feature/foundation-core` (at `9d88071`)
+- **Diff:** 62 commits (everything from `a7fb188` through `9d88071`)
+- **Local branches:**
+  - `feature/foundation-core` at `9d88071` (PR head; can take iteration commits if needed)
+  - `main` at `536471e` (matches remote; needs `git pull` after merge to advance)
+- **Working tree at session end:** clean except for one uncommitted edit to PROJECT-STATE.md (this very update — see commit history)
 
 ---
 
@@ -11,7 +237,7 @@
 |---|---|---|
 | Domain research | `accountancy-practice-research.md` | 22-area working model of an SMB UK practice + ecosystem context + candidate domain model. ~165 KB / ~2,400 lines. |
 | Functional requirements spec | `docs/superpowers/specs/2026-05-10-saas-functional-requirements-design.md` | 367 numbered FRs across all 22 areas with cross-cutting requirements (Section 2), per-area template, glossary, 22 open questions. ~133 KB / ~1,290 lines. |
-| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. Not yet executed. |
+| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. **40 of 40 executed — COMPLETE.** |
 
 ## Decisions locked in earlier sessions
 
@@ -22,12 +248,12 @@
 - **Phasing:** 6 MVP / 5 Phase 2 / 8 Phase 3 / 4 Backlog (see spec §3.1)
 - **MVP areas:** B1 Onboarding, B2 Workflow, B3 Billing, B4 Documents/Portal, B5 Comms/Queries, A1 Bookkeeping orchestration
 - **Tech stack:** **.NET 10 minimum** backend + **React + TypeScript** frontend
-- **Sub-plan decomposition (9 sub-plans, agreed; Foundation split 2026-05-11):**
-  1a. Foundation Core — solution scaffold, DB, tenant isolation, audit log, email/password+TOTP auth, role model, observability, React shell, CI/CD  ← **being planned now**
+- **Sub-plan decomposition (9 sub-plans):**
+  1a. Foundation Core ← **in flight, 70% complete**
   1b. Foundation Extended — M365 + Google SSO, integration-framework skeleton, data-class tagging + retention framework
-  2. Spine — EngagementAndCompliance core (Engagement + Job + RecurringJobSchedule + Task)
+  2. Spine — EngagementAndCompliance core
   3. Client domain & B1 onboarding (incl. AML)
-  4. Document domain & B4 portal (incl. client-portal magic-link + WebAuthn auth)
+  4. Document domain & B4 portal
   5. Comms & B5
   6. Billing & B3
   7. A1 Bookkeeping orchestration (Xero/QBO ACL)
@@ -39,59 +265,43 @@
 
 | Pattern | Apply where |
 |---|---|
-| Bounded contexts | **4 at MVP** (reduced from 6 after stress-test): PracticeOperations, ClientRelationship, EngagementAndCompliance, BillingAndCash. Split EngagementAndCompliance and extract AdvisoryServices later if seams emerge. |
+| Bounded contexts | **4 at MVP**: PracticeOperations, ClientRelationship, EngagementAndCompliance, BillingAndCash |
 | Ubiquitous language | Everywhere (UK accountancy terms in code) |
 | Anti-corruption layers | Every external integration |
 | Rich aggregates | Core complex domain only — `Client`, `Engagement`, `Job`, `Filing`, `RiskAssessment`, `WipBalance` |
 | Anaemic CRUD | Supporting subdomains — `Document` storage, `IntegrationConnection`, branding/admin |
-| Domain events | In-process via MediatR |
+| Domain events | In-process via MediatR (dispatcher in a later sub-plan; events are raised on aggregates but not yet flushed) |
 | CQRS | Selective — separate read projections for dashboards/reporting |
 | Event sourcing | **Not at MVP**; reassess for `Filing` / `Document` as v2 strategic decision |
-| Implementation idiom | **Vertical slices** inside each context (feature folders) rather than horizontal service layers |
+| Implementation idiom | **Vertical slices** inside each context (feature folders) — e.g. `Application/Firms/Register/`, `Application/Users/SignIn/`, `Application/Users/EnrollTotp/` |
 | Clean Architecture layers | Inside each context (Domain → Application → Infrastructure → API) |
-
-**Reasoning captured here so it isn't relitigated:** the original 6-context proposal split `EngagementWorkflow` from `ComplianceServices`, but a Job and a Filing share lifecycle — the seam is chatty. Merging them into `EngagementAndCompliance` is honest at MVP; we split later if/when the boundary becomes natural in code. `AdvisoryServices` was thin at MVP and folds into Engagement until it grows.
-
-## To resume tomorrow
-
-1. Re-ask the DDD stance question (or pick up where they left off if they've decided).
-2. Write the **Foundation sub-plan** as `docs/superpowers/plans/2026-05-11-foundation.md` (or whatever date) following the writing-plans skill format:
-   - Plan header with Goal / Architecture / Tech Stack
-   - File structure first
-   - Bite-sized TDD tasks (2–5 minutes each)
-   - Real code in every step (no placeholders)
-   - Testing commands + expected output
-   - Frequent commits
-3. Foundation scope is spec Section 2 cross-cutting (XR-2.1, 2.2, 2.3, 2.5 skeleton, 2.6) — **excluding** AI governance (XR-2.4) which goes in Sub-plan 8.
-4. After plan is written, offer execution choice: **subagent-driven** (recommended) vs **inline execution**.
 
 ## Foundation scope at a glance
 
-What's in Sub-plan 1:
+What's in Sub-plan 1a:
+- .NET 10 solution scaffold with Clean Architecture per bounded context ✓
+- Multi-tenant data isolation (`FirmId` row-level partitioning) ✓
+- Authentication: email/password + TOTP MFA + JWT bearer ✓
+- Role model from spec §2.2 (FirmOwner, Partner, Manager, FeeEarner, PracticeAdmin) ✓ — policies wired in Task 28
+- Append-only immutable audit log ✓
+- React + TypeScript frontend shell ✓ — Vite + React 19 + Tailwind v3, auth context + 4 pages (register/sign-in/enroll-totp/dashboard)
+- PostgreSQL + EF Core with snake_case ✓
+- Cyber Essentials Plus baseline (MFA, audit log, encryption at rest/in transit) ✓ for auth/audit, TLS via deployment
+- Observability ✓ — Serilog (FirmId/UserId/CorrelationId enrichers, Seq sink), OpenTelemetry (AspNetCore/Http/EFCore instrumentation, OTLP+Console exporters), CorrelationId middleware
+- CI/CD scaffold ✓ — backend.yml + frontend.yml + e2e.yml workflows; Docker images for API and frontend
 
-- .NET 10 solution scaffold with Clean Architecture per bounded context
-- Multi-tenant data isolation (`FirmId` row-level partitioning)
-- Tenant lifecycle (signup → trial → paid; offboarding + 30-day retention)
-- Authentication: Microsoft 365 + Google Workspace SSO + email/password+TOTP fallback
-- MFA mandatory for staff; passwordless magic-link + WebAuthn for client portal
-- Role model from spec §2.2 (FirmOwner, Partner, Manager, FeeEarner, PracticeAdmin, MLRO overlay, DPO overlay; ClientPrimary, ClientStaff, ClientReadOnly)
-- Append-only immutable audit log
-- Data-class tagging + retention policy framework
-- Integration-framework skeleton (port pattern, OAuth wrappers, token rotation, health monitoring)
-- React + TypeScript frontend shell with route guards, role-aware UI, basic admin shell
-- PostgreSQL + EF Core
-- Cyber Essentials Plus baseline (MFA, encryption at rest/in transit, audit log, backup)
-- Observability: structured logging (Serilog), distributed tracing (OpenTelemetry), per-tenant metrics
-- CI/CD scaffold; Azure deployment target
-
-What's NOT in Sub-plan 1 (covered in later sub-plans):
-
-- Any business domain (Engagement, Job, Filing, Client) — those come in Sub-plans 2 and 3
+Out of scope here (covered later):
+- Tenant lifecycle / trial / offboarding (Sub-plan 1b)
+- Microsoft 365 + Google SSO (Sub-plan 1b)
+- Passwordless magic-link + WebAuthn for client portal (Sub-plan 4)
+- Data-class tagging + retention framework (Sub-plan 1b)
+- Integration-framework skeleton (Sub-plan 1b)
+- Any business domain — Engagement, Job, Filing, Client (Sub-plans 2 and 3)
 - Document storage (Sub-plan 4)
 - AI gateway and governance (Sub-plan 8)
-- Any external regulatory integration (Xero/HMRC/AML — come in their respective sub-plans)
-- Branding / theming (light support only at MVP foundation; richer in B8 Phase 2)
+- External regulatory integrations (Xero/HMRC/AML — respective sub-plans)
+- Branding / theming
 
 ---
 
-*Continue from this file when resuming. The brainstorming and writing-plans skills are still in-flight in their narrative, but the next concrete action — re-ask DDD, write Foundation plan — is fully captured here so you can pick up cold.*
+*Foundation Core sub-plan 1a is **shipped — PR #1 open** at https://github.com/ajs-uk-dev/accounts/pull/1. All 40 tasks done, final cross-cutting review run + 3 Criticals + Minor #15 + audit coverage gaps fixed (8 fix commits, 13 new tests, 56 → 69), build green, both Docker images built, three CI workflows in place. Awaiting first CI run + merge decision. Then Sub-plan 1b.*

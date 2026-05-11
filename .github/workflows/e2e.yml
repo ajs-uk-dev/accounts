@@ -1,0 +1,62 @@
+name: e2e
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: accounts
+          POSTGRES_PASSWORD: accounts_dev_password
+          POSTGRES_DB: accounts_dev
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U accounts -d accounts_dev"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm', cache-dependency-path: client/accounts-web/package-lock.json }
+      - run: dotnet restore Accounts.sln
+      - run: dotnet build src/Web/Accounts.Web/Accounts.Web.csproj -c Release
+      - name: Apply migrations
+        run: |
+          dotnet tool install --global dotnet-ef
+          dotnet ef database update \
+            --project src/PracticeOperations/Accounts.PracticeOperations.Infrastructure \
+            --startup-project src/Web/Accounts.Web \
+            --connection "Host=localhost;Database=accounts_dev;Username=accounts;Password=accounts_dev_password"
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+      - name: Start API
+        run: |
+          dotnet run --project src/Web/Accounts.Web/Accounts.Web.csproj -c Release \
+            --urls http://localhost:5080 &
+          npx wait-on http://localhost:5080/health
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+      - name: Install & start frontend
+        working-directory: client/accounts-web
+        run: |
+          npm ci
+          npm run build
+          npm install -g serve
+          serve -s dist -l 5173 &
+          npx wait-on http://localhost:5173
+      - name: Playwright
+        working-directory: client/accounts-web
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: client/accounts-web/playwright-report/

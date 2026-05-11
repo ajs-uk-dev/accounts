@@ -465,6 +465,7 @@ services:
     container_name: accounts-seq
     environment:
       ACCEPT_EULA: Y
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"   # local dev only; Seq 2025.2+ requires explicit opt-in
     ports:
       - "5341:80"
     volumes:
@@ -890,9 +891,13 @@ dotnet add src/Web/Accounts.Web/Accounts.Web.csproj package Microsoft.EntityFram
 dotnet add src/Web/Accounts.Web/Accounts.Web.csproj package Microsoft.EntityFrameworkCore.Design
 dotnet add src/Web/Accounts.Web/Accounts.Web.csproj package Npgsql.EntityFrameworkCore.PostgreSQL
 dotnet add src/Web/Accounts.Web/Accounts.Web.csproj package AspNetCore.HealthChecks.NpgSql --version 9.0.0
+dotnet add src/Web/Accounts.Web/Accounts.Web.csproj package Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore
 ```
 
-> Note: `AspNetCore.HealthChecks.NpgSql` 9.0 targets .NET 9 but is forward-compatible with .NET 10. Pin centrally in `Directory.Packages.props` if you prefer.
+> Notes:
+> - `AspNetCore.HealthChecks.NpgSql` 9.0 targets .NET 9 but is forward-compatible with .NET 10.
+> - `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore` is required for `AddDbContextCheck<T>()` — that extension method lives in this package, not in the Npgsql health-checks package.
+> - Adding the HealthChecks.EFCore package will require bumping `Microsoft.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore.Design` from `10.0.0` to `10.0.7` (transitive constraint). Update both `PackageVersion` entries in `Directory.Packages.props`.
 
 - [ ] **Step 2: Write `appsettings.json`**
 
@@ -1083,12 +1088,13 @@ public class HealthCheckTests
 }
 ```
 
-- [ ] **Step 5: Run — it should fail because no migration exists yet**
+- [ ] **Step 5: Run the test**
 
 ```powershell
 dotnet test src/PracticeOperations/Accounts.PracticeOperations.IntegrationTests/Accounts.PracticeOperations.IntegrationTests.csproj
 ```
-Expected: failure with a message about `Migrate()` finding no migrations OR connection succeeding. Either way, we'll add the initial migration in the next task.
+
+> Expected: **passes**. The plan originally expected this to fail RED until Task 8's migration, but `db.Database.Migrate()` against an empty migrations assembly is a no-op that succeeds (it just creates the migrations history table), and `AddDbContextCheck<T>` defaults to `CanConnectAsync()` which doesn't verify any tables exist. The integration plumbing (Testcontainers, ApiFactory, /health) is exercised — that's the value. Task 8 still adds the initial migration for downstream tasks to extend.
 
 - [ ] **Step 6: Commit**
 
@@ -1096,6 +1102,8 @@ Expected: failure with a message about `Migrate()` finding no migrations OR conn
 git add -A
 git commit -m "test(integration): add postgres fixture, api factory, health check test (red)"
 ```
+
+> The "(red)" suffix is preserved historically — the original intent was a red→green progression. In practice the test goes green immediately; the commit message stays as the plan documents to keep the history readable.
 
 ---
 

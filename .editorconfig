@@ -15,3 +15,9 @@ indent_size = 2
 csharp_new_line_before_open_brace = all
 dotnet_sort_system_directives_first = true
 dotnet_style_namespace_match_folder = true:warning
+
+# EF Core scaffolds inline arrays for composite-index columns. Suppress
+# CA1861 (Avoid constant arrays as arguments) in generated migration files
+# rather than hand-hoisting fields in every new migration.
+[**/Persistence/Migrations/*.cs]
+dotnet_diagnostic.CA1861.severity = none
