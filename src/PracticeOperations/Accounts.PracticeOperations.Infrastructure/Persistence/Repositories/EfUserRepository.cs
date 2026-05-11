@@ -11,7 +11,7 @@ internal sealed class EfUserRepository : IUserRepository
     public EfUserRepository(PracticeOperationsDbContext db) => _db = db;
 
     public Task<User?> GetAsync(UserId id, CancellationToken ct = default) =>
-        _db.Set<User>().IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == id, ct);
+        _db.Set<User>().FirstOrDefaultAsync(u => u.Id == id, ct);
 
     public Task<User?> GetByEmailAcrossFirmsAsync(string email, CancellationToken ct = default)
     {
