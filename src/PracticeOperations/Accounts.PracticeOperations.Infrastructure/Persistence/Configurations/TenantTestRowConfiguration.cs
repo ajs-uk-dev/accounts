@@ -13,7 +13,6 @@ internal sealed class TenantTestRowConfiguration : IEntityTypeConfiguration<Tena
         b.HasKey(x => x.Id);
         b.Property(x => x.FirmId)
             .HasConversion(v => v.Value, v => new FirmId(v))
-            .HasColumnName("firm_id")
             .IsRequired();
         b.HasIndex(x => x.FirmId);
         b.Property(x => x.Label).HasMaxLength(200).IsRequired();

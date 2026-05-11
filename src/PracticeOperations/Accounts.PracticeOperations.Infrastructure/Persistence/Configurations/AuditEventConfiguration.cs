@@ -14,13 +14,12 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
 
         b.Property(x => x.FirmId)
             .HasConversion(v => v.Value, v => new FirmId(v))
-            .HasColumnName("firm_id").IsRequired();
+            .IsRequired();
 
         b.Property(x => x.ActorUserId)
             .HasConversion(
                 v => v!.Value.Value,
-                v => new UserId(v))
-            .HasColumnName("actor_user_id");
+                v => new UserId(v));
 
         b.Property(x => x.Action).HasConversion<string>().HasMaxLength(64).IsRequired();
         b.Property(x => x.EntityType).HasMaxLength(128).IsRequired();

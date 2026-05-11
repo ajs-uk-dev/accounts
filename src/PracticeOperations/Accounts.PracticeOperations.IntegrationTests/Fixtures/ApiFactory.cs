@@ -22,11 +22,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.ConfigureAppConfiguration((_, cfg) =>
-            cfg.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:PracticeOperations"] = _connectionString
-            }));
+        // Apply via host configuration so the value is visible to WebApplication.CreateBuilder
+        // in Program.cs. ConfigureAppConfiguration alone does not always win in minimal-hosting
+        // when the SUT uses appsettings.json — host configuration runs first and feeds the
+        // builder's configuration chain.
+        builder.UseSetting("ConnectionStrings:PracticeOperations", _connectionString);
         builder.ConfigureServices(services =>
         {
             _configureServices?.Invoke(services);

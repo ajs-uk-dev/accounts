@@ -21,7 +21,8 @@ public static class DependencyInjection
 
         services.AddDbContext<PracticeOperationsDbContext>(opts =>
             opts.UseNpgsql(connectionString, npgsql =>
-                npgsql.MigrationsHistoryTable("__ef_migrations", "practice_operations")));
+                    npgsql.MigrationsHistoryTable("__ef_migrations", "practice_operations"))
+                .UseSnakeCaseNamingConvention());
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddHttpContextAccessor();
