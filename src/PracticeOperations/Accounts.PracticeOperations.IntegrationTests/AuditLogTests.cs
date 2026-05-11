@@ -75,4 +75,29 @@ public class AuditLogTests
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*append-only*");
     }
+
+    [Fact]
+    public async Task SaveChangesAsync_two_arg_overload_also_blocks_modification()
+    {
+        var firm = FirmId.New();
+        var ctx = new FakeFirmContext { FirmId = firm, UserId = UserId.New() };
+        await using var api = new ApiFactory(_pg.ConnectionString, services =>
+        {
+            services.RemoveAll<IFirmContext>();
+            services.AddSingleton<IFirmContext>(ctx);
+        });
+
+        using var scope = api.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PracticeOperationsDbContext>();
+        var evt = AuditEvent.Record(firm, ctx.UserId, AuditAction.UserSignedIn,
+            "User", ctx.UserId!.Value.ToString(), null, null, DateTimeOffset.UtcNow);
+        db.Set<AuditEvent>().Add(evt);
+        await db.SaveChangesAsync(acceptAllChangesOnSuccess: true, CancellationToken.None);
+
+        db.Entry(evt).Property(nameof(AuditEvent.EntityId)).CurrentValue = "tampered";
+
+        var act = () => db.SaveChangesAsync(acceptAllChangesOnSuccess: true, CancellationToken.None);
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*append-only*");
+    }
 }

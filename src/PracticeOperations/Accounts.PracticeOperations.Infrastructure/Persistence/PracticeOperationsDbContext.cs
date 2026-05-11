@@ -51,16 +51,21 @@ public class PracticeOperationsDbContext : DbContext
         modelBuilder.Entity<TEntity>().HasQueryFilter(filter);
     }
 
-    public override int SaveChanges()
+    // Override the two-arg leaf overloads so direct callers of
+    // SaveChanges(bool) / SaveChangesAsync(bool, CancellationToken) are also guarded.
+    // EF's parameterless / one-arg forms chain through these via base.
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         GuardAuditAppendOnly();
-        return base.SaveChanges();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
     {
         GuardAuditAppendOnly();
-        return base.SaveChangesAsync(cancellationToken);
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     private void GuardAuditAppendOnly()
