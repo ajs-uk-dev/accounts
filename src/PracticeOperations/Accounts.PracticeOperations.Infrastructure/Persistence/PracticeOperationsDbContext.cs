@@ -18,9 +18,8 @@ public class PracticeOperationsDbContext : DbContext
         _firmContext = firmContext;
     }
 
-    /// <summary>For migration-only / test-fixture use where no firm context exists.</summary>
-    internal Guid? CurrentFirmIdRaw =>
-        _firmContext.FirmId.HasValue ? _firmContext.FirmId.Value.Value : null;
+    /// <summary>Strongly-typed accessor used by the query filter so EF can apply the FirmId value converter symmetrically.</summary>
+    internal FirmId? CurrentFirmId => _firmContext.FirmId;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,8 +44,10 @@ public class PracticeOperationsDbContext : DbContext
     private void SetTenantFilter<TEntity>(ModelBuilder modelBuilder)
         where TEntity : class, ITenantScopedEntity
     {
+        // Compare the strongly-typed FirmId on both sides so EF applies the value
+        // converter on the LHS column and on the captured parameter symmetrically.
         Expression<Func<TEntity, bool>> filter =
-            e => CurrentFirmIdRaw == null || e.FirmId.Value == CurrentFirmIdRaw;
+            e => CurrentFirmId == null || e.FirmId == CurrentFirmId.Value;
         modelBuilder.Entity<TEntity>().HasQueryFilter(filter);
     }
 }
