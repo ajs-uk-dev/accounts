@@ -29,6 +29,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+        services.AddSingleton<ITotpService, OtpNetTotpService>();
         services.AddHttpContextAccessor();
         services.AddScoped<IAuditWriter, EfAuditWriter>();
         services.AddScoped<IFirmRepository, EfFirmRepository>();
