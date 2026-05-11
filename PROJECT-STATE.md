@@ -1,7 +1,7 @@
 # Project State — SaaS for SME UK Accountancy Practices
 
 **Last working session:** 2026-05-11 (extended)
-**Status:** Paused after Task 27 — **auth foundation complete**. Sub-plan 1a (Foundation Core) at **27 of 40 tasks** on branch `feature/foundation-core`. Next: **Phase 8 — Role-based authorization (Task 28)**, then Phases 9-12.
+**Status:** Paused after Task 28 — **Phase 8 (authz) complete**. Sub-plan 1a (Foundation Core) at **28 of 40 tasks** on branch `feature/foundation-core`. Next: **Phase 9 — Observability (Tasks 29-31: Serilog + OpenTelemetry + CorrelationId)**, then Phases 10-12.
 
 ## Tasks completed (commits on `feature/foundation-core`, in order)
 
@@ -41,6 +41,8 @@
 | 25 | `f716fa5` | EnrollTotpCommand + handler + /api/auth/enroll-totp endpoint (IFirmContext-guarded, RequireAuthorization) + 2 unit tests |
 | 26 | `ac33b07` | IJwtIssuer + JwtIssuer (HMAC-SHA256, 60-min lifetime, claims: sub/firm_id/Role); JwtBearer scheme wired in Web/Program.cs; appsettings.json holds empty placeholders; dev Jwt config in appsettings.Development.json; ApiFactory injects test Jwt config via UseSetting (auth scheme inits eagerly); JwtBearer NuGet was needed (not in implicit FrameworkReference); 3 unit tests |
 | 27 | `6afcd59` | SignInCommand + handler + /api/auth/sign-in endpoint with TOTP step-up; auto-Activate on first sign-in (MFA grace); IAuditWriter ctor inject omitted (deferred to Task 28-29); 2 integration tests |
+| – | `31230cd` | docs(state): checkpoint after Task 27 |
+| 28 | `a1f320e` | Authorization policies (RequireFirmOwner / RequirePartnerOrAbove / RequireManagerOrAbove / RequireStaff) + /api/admin/me (RequireStaff) + /api/admin/owner-only (RequireFirmOwner); AdminEndpointsPartial stub removed; 2 integration tests proving full bearer → role-claim → policy chain |
 
 ## Auth surface now complete
 
@@ -88,12 +90,12 @@
 ## Current state at pause
 
 - Branch: `feature/foundation-core`
-- Last commit: `6afcd59` (Task 27 — SignIn endpoint)
-- Tasks complete: **27 of 40 (67.5%)**
+- Last commit: `a1f320e` (Task 28 — authz policies + admin endpoints)
+- Tasks complete: **28 of 40 (70%)**
 - Working tree: clean
 - Docker: postgres + seq still running locally (postgres healthy; required for integration tests)
 - Build: 0 warnings, 0 errors
-- Tests: **52 passing** (6 SharedKernel + 32 PracticeOperations.UnitTests + 14 PracticeOperations.IntegrationTests)
+- Tests: **54 passing** (6 SharedKernel + 32 PracticeOperations.UnitTests + 16 PracticeOperations.IntegrationTests)
 - Vulnerability scan: clean (last verified at Task 21a commit)
 - Dev DB note: still contains stale PascalCase-era migration rows from before Task 19 regeneration; anyone running `dotnet ef database update` against dev needs to drop the `practice_operations` schema first
 
@@ -102,9 +104,9 @@
 1. Read this file.
 2. Check out `feature/foundation-core`.
 3. Verify Docker: `docker compose -f docker/docker-compose.yml ps`
-4. Optionally back-fill reviews for Tasks 24-27 (all skipped — small/verbatim with adequate test coverage; not strictly owed). Otherwise proceed.
-5. **Dispatch Task 28**: Authorization policies (FirmOwner / PartnerOrAbove / ManagerOrAbove / RequireStaff) + a role-gated admin endpoint + AuthorizationTests integration test. Task 28 spec is in `docs/superpowers/plans/2026-05-11-foundation-core.md` near line 3890.
-6. Phases left after Task 28: Phase 8 finishes role gating; Phase 9 = observability (Serilog/OpenTelemetry/CorrelationId, Tasks 29-31); Phase 10 = Vite/React/TS frontend (Tasks 32-35); Phase 11 = Docker + GitHub Actions CI/CD (Tasks 36-39); Phase 12 = end-to-end Playwright (Task 40).
+4. Optionally back-fill reviews for Tasks 24-28 (all skipped — small/verbatim with adequate test coverage; not strictly owed). Otherwise proceed.
+5. **Dispatch Task 29**: Serilog with structured properties. Spec in `docs/superpowers/plans/2026-05-11-foundation-core.md` near line 4013.
+6. Phases left: Phase 9 = observability (Serilog/OpenTelemetry/CorrelationId, Tasks 29-31); Phase 10 = Vite/React/TS frontend (Tasks 32-35); Phase 11 = Docker + GitHub Actions CI/CD (Tasks 36-39); Phase 12 = end-to-end Playwright (Task 40).
 
 ---
 
@@ -114,7 +116,7 @@
 |---|---|---|
 | Domain research | `accountancy-practice-research.md` | 22-area working model of an SMB UK practice + ecosystem context + candidate domain model. ~165 KB / ~2,400 lines. |
 | Functional requirements spec | `docs/superpowers/specs/2026-05-10-saas-functional-requirements-design.md` | 367 numbered FRs across all 22 areas with cross-cutting requirements (Section 2), per-area template, glossary, 22 open questions. ~133 KB / ~1,290 lines. |
-| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. **27 of 40 executed.** |
+| Implementation plan — Sub-plan 1a Foundation Core | `docs/superpowers/plans/2026-05-11-foundation-core.md` | 40 TDD tasks across 12 phases. ~174 KB / 4,189 lines. **28 of 40 executed.** |
 
 ## Decisions locked in earlier sessions
 
@@ -126,7 +128,7 @@
 - **MVP areas:** B1 Onboarding, B2 Workflow, B3 Billing, B4 Documents/Portal, B5 Comms/Queries, A1 Bookkeeping orchestration
 - **Tech stack:** **.NET 10 minimum** backend + **React + TypeScript** frontend
 - **Sub-plan decomposition (9 sub-plans):**
-  1a. Foundation Core ← **in flight, 67.5% complete**
+  1a. Foundation Core ← **in flight, 70% complete**
   1b. Foundation Extended — M365 + Google SSO, integration-framework skeleton, data-class tagging + retention framework
   2. Spine — EngagementAndCompliance core
   3. Client domain & B1 onboarding (incl. AML)
@@ -159,7 +161,7 @@ What's in Sub-plan 1a:
 - .NET 10 solution scaffold with Clean Architecture per bounded context ✓
 - Multi-tenant data isolation (`FirmId` row-level partitioning) ✓
 - Authentication: email/password + TOTP MFA + JWT bearer ✓
-- Role model from spec §2.2 (FirmOwner, Partner, Manager, FeeEarner, PracticeAdmin) ✓
+- Role model from spec §2.2 (FirmOwner, Partner, Manager, FeeEarner, PracticeAdmin) ✓ — policies wired in Task 28
 - Append-only immutable audit log ✓
 - React + TypeScript frontend shell **(pending, Tasks 32–35)**
 - PostgreSQL + EF Core with snake_case ✓
@@ -181,4 +183,4 @@ Out of scope here (covered later):
 
 ---
 
-*Continue from this file when resuming. Auth foundation is now complete — register, sign-in, MFA, JWT bearer all working end-to-end. Next concrete action is Task 28 (role-based authorization policies + admin endpoint + integration test).*
+*Continue from this file when resuming. Auth + authz foundation is now complete — register, sign-in, MFA, JWT bearer, role-gated endpoints all working end-to-end. Next concrete action is Task 29 (Serilog with structured properties) — start of Phase 9 observability.*
