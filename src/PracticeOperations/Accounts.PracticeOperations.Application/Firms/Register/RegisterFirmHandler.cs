@@ -1,6 +1,7 @@
 using Accounts.PracticeOperations.Application.Abstractions;
 using Accounts.PracticeOperations.Domain.Firms;
 using Accounts.PracticeOperations.Domain.Users;
+using Accounts.SharedKernel.Exceptions;
 using Accounts.SharedKernel.Time;
 using MediatR;
 
@@ -25,7 +26,7 @@ public sealed class RegisterFirmHandler : IRequestHandler<RegisterFirmCommand, R
     {
         var existing = await _firms.GetBySlugAsync(cmd.FirmSlug, cancellationToken);
         if (existing is not null)
-            throw new InvalidOperationException($"Firm slug '{cmd.FirmSlug}' is already taken.");
+            throw new ConflictException($"Firm slug '{cmd.FirmSlug}' is already taken.");
 
         var email = EmailAddress.Create(cmd.OwnerEmail);
         if (email.IsFailure)
@@ -33,7 +34,7 @@ public sealed class RegisterFirmHandler : IRequestHandler<RegisterFirmCommand, R
 
         var existingUser = await _users.GetByEmailAcrossFirmsAsync(email.Value!.Value, cancellationToken);
         if (existingUser is not null)
-            throw new InvalidOperationException($"Email '{email.Value.Value}' is already registered.");
+            throw new ConflictException($"Email '{email.Value.Value}' is already registered.");
 
         var now = _clock.UtcNow;
         var firm = Firm.Register(cmd.FirmName, cmd.FirmSlug, now);

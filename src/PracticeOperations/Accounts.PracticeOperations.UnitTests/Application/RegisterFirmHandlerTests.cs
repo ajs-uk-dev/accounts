@@ -2,6 +2,7 @@ using Accounts.PracticeOperations.Application.Abstractions;
 using Accounts.PracticeOperations.Application.Firms.Register;
 using Accounts.PracticeOperations.Domain.Firms;
 using Accounts.PracticeOperations.Domain.Users;
+using Accounts.SharedKernel.Exceptions;
 using Accounts.SharedKernel.Identity;
 using Accounts.SharedKernel.Time;
 using FluentAssertions;
@@ -52,7 +53,7 @@ public class RegisterFirmHandlerTests
             new RegisterFirmCommand("Acme", "acme", "x@y.com", "long-enough-pwd"),
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*slug*taken*");
+        await act.Should().ThrowAsync<ConflictException>().WithMessage("*slug*taken*");
         await firms.DidNotReceive().AddAsync(Arg.Any<Firm>());
         await users.DidNotReceive().AddAsync(Arg.Any<User>());
         await uow.DidNotReceive().SaveChangesAsync();
@@ -82,7 +83,7 @@ public class RegisterFirmHandlerTests
             new RegisterFirmCommand("Acme", "acme", "alice@example.com", "long-enough-pwd"),
             CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*alice@example.com*already registered*");
+        await act.Should().ThrowAsync<ConflictException>().WithMessage("*alice@example.com*already registered*");
         await firms.DidNotReceive().AddAsync(Arg.Any<Firm>());
         await users.DidNotReceive().AddAsync(Arg.Any<User>());
         await uow.DidNotReceive().SaveChangesAsync();

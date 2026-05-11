@@ -1,4 +1,5 @@
 using Accounts.PracticeOperations.Infrastructure;
+using Accounts.PracticeOperations.Infrastructure.Endpoints;
 using Accounts.PracticeOperations.Infrastructure.Persistence;
 using Accounts.Web.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,8 @@ var app = builder.Build();
 app.MapHealthChecks("/health");
 
 app.MapGet("/", () => Results.Ok(new { service = "accounts", status = "ok" }));
+
+app.MapPracticeOperations();
 
 app.Run();
 
